@@ -18,14 +18,11 @@ def get_engine_of_project(project):
     x_ver_file = os.path.join(project["path"], 'frameworks/cocos2d-x/cocos/cocos2d.cpp')
     pattern = r".*return[ \t]+\"cocos2d-x (.*)\";"
 
-    f = open(x_ver_file)
-    for line in f.readlines():
-        match = re.match(pattern, line)
-        if match:
-            ver_str = match.group(1)
-            break
-    f.close()
-
+    with open(x_ver_file) as f:
+        for line in f:
+            if match := re.match(pattern, line):
+                ver_str = match.group(1)
+                break
     return ver_str
 
 class ProjectHelper:
@@ -39,20 +36,17 @@ class ProjectHelper:
         cwd = os.path.realpath(os.getcwd())
         prefix = cwd
 
-        project = {}
-        project["path"] = prefix
-
-        project["classes_dir"] = "Classes"
+        project = {"path": prefix, "classes_dir": "Classes"}
         if os.path.exists(prefix + os.sep + project["classes_dir"]):
             project["type"] = "cpp"
             prefix = ""
         else:
-            prefix = "frameworks" + os.sep + "runtime-src" + os.sep
+            prefix = f"frameworks{os.sep}runtime-src{os.sep}"
             project["classes_dir"] = prefix + os.sep + "Classes"
             if os.path.exists(cwd + os.sep + project["classes_dir"]):
                 project["type"] = "script"
 
-        if not "type" in project:
+        if "type" not in project:
             message = MultiLanguage.get_string('PACKAGE_ERROR_WRONG_DIR')
             raise cocos.CCPluginError(message, cocos.CCPluginError.ERROR_WRONG_CONFIG)
 
@@ -83,9 +77,8 @@ class ProjectHelper:
             if not os.path.isfile(info_file):
                 continue
             import json
-            f = open(info_file, "rb")
-            package_info = json.load(f)
-            f.close()
+            with open(info_file, "rb") as f:
+                package_info = json.load(f)
             package_info["dir_path"] = dir_path
             packages.append(package_info)
 

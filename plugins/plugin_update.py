@@ -50,8 +50,8 @@ class CCPluginUpdate(cocos2d.CCPlugin):
             match = re.search('href="http://cdn.cocos2d-x.org/cocos2d-x-(.*?).zip"', data)
             if match is None:
                 raise cocos2d.CCPluginError("Couldn't extract latest version from site")
-            
-            return match.group(1)
+
+            return match[1]
         finally:
             conn.close()
 

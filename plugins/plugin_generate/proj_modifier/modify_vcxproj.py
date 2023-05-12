@@ -28,34 +28,22 @@ class VCXProject(object):
         if len(children) > 0:
             return children[0]
         else:
-            if create_new:
-                child = parent.createElement(node_name)
-                return child
-            else:
-                return None
+            return parent.createElement(node_name) if create_new else None
 
     def save(self, new_path=None):
         if new_path is None:
             savePath = self.file_path
         else:
-            if os.path.isabs(new_path):
-                savePath = new_path
-            else:
-                savePath = os.path.abspath(new_path)
-
-        output_msg("Saving the vcxproj to %s" % savePath)
+            savePath = new_path if os.path.isabs(new_path) else os.path.abspath(new_path)
+        output_msg(f"Saving the vcxproj to {savePath}")
 
         if not os.path.isabs(savePath):
             savePath = os.path.abspath(savePath)
 
-        file_obj = open(savePath, "w")
-        self.xmldoc.writexml(file_obj, encoding="utf-8")
-        file_obj.close()
-
-        file_obj = open(savePath, "r")
-        file_content = file_obj.read()
-        file_obj.close()
-
+        with open(savePath, "w") as file_obj:
+            self.xmldoc.writexml(file_obj, encoding="utf-8")
+        with open(savePath, "r") as file_obj:
+            file_content = file_obj.read()
         file_content = file_content.replace("&quot;", "\"")
         file_content = file_content.replace("/>", " />")
 
@@ -64,21 +52,15 @@ class VCXProject(object):
 
         file_content = file_content.replace("?><", "?>\r\n<")
 
-        file_obj = open(savePath, "w")
-        file_obj.write(file_content)
-        file_obj.close()
-
+        with open(savePath, "w") as file_obj:
+            file_obj.write(file_content)
         output_msg("Saving Finished")
 
     def remove_lib(self, lib_name):
         cfg_nodes = self.root_node.getElementsByTagName("ItemDefinitionGroup")
         for cfg_node in cfg_nodes:
             cond_attr = cfg_node.attributes["Condition"].value
-            if cond_attr.lower().find("debug") >= 0:
-                cur_mode = "Debug"
-            else:
-                cur_mode = "Release"
-
+            cur_mode = "Debug" if cond_attr.lower().find("debug") >= 0 else "Release"
             # remove the linked lib config
             link_node = self.get_or_create_node(cfg_node, "Link")
             depends_node = self.get_or_create_node(link_node, "AdditionalDependencies")
@@ -99,11 +81,7 @@ class VCXProject(object):
         cfg_nodes = self.root_node.getElementsByTagName("ItemDefinitionGroup")
         for cfg_node in cfg_nodes:
             cond_attr = cfg_node.attributes["Condition"].value
-            if cond_attr.lower().find("debug") >= 0:
-                cur_mode = "Debug"
-            else:
-                cur_mode = "Release"
-
+            cur_mode = "Debug" if cond_attr.lower().find("debug") >= 0 else "Release"
             # add the linked lib config
             link_node = self.get_or_create_node(cfg_node, "Link")
             depends_node = self.get_or_create_node(link_node, "AdditionalDependencies")
@@ -125,11 +103,7 @@ class VCXProject(object):
         for cfg_node in cfg_nodes:
             if config is not None:
                 cond_attr = cfg_node.attributes["Condition"].value
-                if cond_attr.lower().find("debug") >= 0:
-                    cur_mode = "Debug"
-                else:
-                    cur_mode = "Release"
-
+                cur_mode = "Debug" if cond_attr.lower().find("debug") >= 0 else "Release"
                 if cur_mode.lower() != config.lower():
                     continue
 
@@ -156,11 +130,7 @@ class VCXProject(object):
                     continue
 
                 cond_attr = cfg_node.attributes["Condition"].value
-                if cond_attr.lower().find("debug") >= 0:
-                    cur_mode = "Debug"
-                else:
-                    cur_mode = "Release"
-
+                cur_mode = "Debug" if cond_attr.lower().find("debug") >= 0 else "Release"
                 if cur_mode.lower() != config.lower():
                     continue
 
@@ -191,12 +161,8 @@ class VCXProject(object):
         cfg_nodes = self.root_node.getElementsByTagName("ItemDefinitionGroup")
         for cfg_node in cfg_nodes:
             cond_attr = cfg_node.attributes["Condition"].value
-            if cond_attr.lower().find("debug") >= 0:
-                cur_mode = "Debug"
-            else:
-                cur_mode = "Release"
-
-            output_msg("event: %s" % event)
+            cur_mode = "Debug" if cond_attr.lower().find("debug") >= 0 else "Release"
+            output_msg(f"event: {event}")
             event_node = self.get_node_if(cfg_node, event)
             cmd_node = self.get_node_if(event_node, eventItem)
             text_node = self.xmldoc.createTextNode(command)
@@ -229,11 +195,7 @@ class VCXProject(object):
                     continue
 
                 cond_attr = cfg_node.attributes["Condition"].value
-                if cond_attr.lower().find("debug") >= 0:
-                    cur_mode = "Debug"
-                else:
-                    cur_mode = "Release"
-
+                cur_mode = "Debug" if cond_attr.lower().find("debug") >= 0 else "Release"
                 if (cur_mode.lower() != config.lower()):
                     continue
 

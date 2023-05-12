@@ -73,17 +73,12 @@ class TemplateModifier(object):
         else:
             targetName = "HelloJavascript"
             link_libs = XCODE_LINK_CPP_LIBS + XCODE_LINK_JS_LIBS
-            replace_engine_strs.append("$(SRCROOT)/../../cocos2d-x")
-            replace_engine_strs.append("../../cocos2d-x")
-        ios_target_name = "%s-mobile" % targetName
-        mac_target_name = "%s-desktop" % targetName
+            replace_engine_strs.extend(("$(SRCROOT)/../../cocos2d-x", "../../cocos2d-x"))
+        ios_target_name = f"{targetName}-mobile"
+        mac_target_name = f"{targetName}-desktop"
 
         # remove the target dependencies
         pbx_proj.remove_proj_reference("cocos2d_libs.xcodeproj")
-        if language == "lua":
-            pbx_proj.remove_proj_reference("cocos2d_lua_bindings.xcodeproj")
-            pbx_proj.remove_proj_reference("libsimulator.xcodeproj")
-
         if language == "js":
             pbx_proj.remove_proj_reference("cocos2d_js_bindings.xcodeproj")
             pbx_proj.remove_proj_reference("libsimulator.xcodeproj")
@@ -91,25 +86,27 @@ class TemplateModifier(object):
 
             common_group = pbx_proj.get_or_create_group("JS Common")
             pbx_proj.add_file_if_doesnt_exist("../../../script", common_group, tree="<group>")
-            # pbx_proj.remove_group_by_name("JS Common")
+        elif language == "lua":
+            pbx_proj.remove_proj_reference("cocos2d_lua_bindings.xcodeproj")
+            pbx_proj.remove_proj_reference("libsimulator.xcodeproj")
 
         # add libraries search path
-        libs_path = "/Applications/Cocos/Cocos2d-x/%s/prebuilt" % self.version
-        ios_template_prebuilt_path = "%s/%s" % (libs_path, "ios")
+        libs_path = f"/Applications/Cocos/Cocos2d-x/{self.version}/prebuilt"
+        ios_template_prebuilt_path = f"{libs_path}/ios"
         pbx_proj.add_library_search_paths(ios_template_prebuilt_path, target_name=ios_target_name, recursive=False)
-        mac_template_prebuilt_path = "%s/%s" % (libs_path, "mac")
+        mac_template_prebuilt_path = f"{libs_path}/mac"
         pbx_proj.add_library_search_paths(mac_template_prebuilt_path, target_name=mac_target_name, recursive=False)
 
         # add libraries for targets
         ios_lib_group = pbx_proj.get_or_create_group("ios-libs")
         mac_lib_group = pbx_proj.get_or_create_group("mac-libs")
         for lib in link_libs:
-            ios_lib_name = "%s iOS.a" % lib
-            mac_lib_name = "%s Mac.a" % lib
-            ios_lib_path = "%s/%s" % (ios_template_prebuilt_path, ios_lib_name)
+            ios_lib_name = f"{lib} iOS.a"
+            mac_lib_name = f"{lib} Mac.a"
+            ios_lib_path = f"{ios_template_prebuilt_path}/{ios_lib_name}"
             pbx_proj.add_file_if_doesnt_exist(ios_lib_path, ios_lib_group, tree="<group>", target=ios_target_name)
 
-            mac_lib_path = "%s/%s" % (mac_template_prebuilt_path, mac_lib_name)
+            mac_lib_path = f"{mac_template_prebuilt_path}/{mac_lib_name}"
             pbx_proj.add_file_if_doesnt_exist(mac_lib_path, mac_lib_group, tree="<group>", target=mac_target_name)
 
         # add studio resources to the xcode project of cpp template
@@ -128,18 +125,14 @@ class TemplateModifier(object):
             Logging.info(MultiLanguage.get_string('GEN_TEMP_SAVE_XCODE_PROJ_FMT', proj_file_path))
             pbx_proj.save()
 
-        # modify the engine path
-        f = open(proj_file_path)
-        file_content = f.read()
-        f.close()
-
-        install_path = "/Applications/Cocos/Cocos2d-x/%s" % self.version
+        with open(proj_file_path) as f:
+            file_content = f.read()
+        install_path = f"/Applications/Cocos/Cocos2d-x/{self.version}"
         for old_engine_path in replace_engine_strs:
             file_content = file_content.replace(old_engine_path, install_path)
 
-        f = open(proj_file_path, "w")
-        f.write(file_content)
-        f.close()
+        with open(proj_file_path, "w") as f:
+            f.write(file_content)
 
     def modify_vs_proj(self, proj_file_path):
         if proj_file_path.find('cpp-template') >= 0:
@@ -161,7 +154,7 @@ class TemplateModifier(object):
         install_path = "$(COCOS_X_ROOT)\\%s\\" % self.version
 
         copy_libs_cmd = "if not exist \"$(OutDir)\" mkdir \"$(OutDir)\"\n" \
-                        "xcopy /Y /Q \"$(EngineRoot)\\prebuilt\\win32\\*.*\" \"$(OutDir)\"\n"
+                            "xcopy /Y /Q \"$(EngineRoot)\\prebuilt\\win32\\*.*\" \"$(OutDir)\"\n"
         vcx_proj.set_event_command('PreLinkEvent', copy_libs_cmd, 'debug')
         vcx_proj.set_event_command('PreLinkEvent', copy_libs_cmd, 'release')
 
@@ -176,38 +169,22 @@ class TemplateModifier(object):
         Logging.info(MultiLanguage.get_string('GEN_TEMP_SAVE_VS_PROJ_FMT', proj_file_path))
         vcx_proj.save()
 
-        replace_strs = []
-        replace_strs.append("$(EngineRoot)")
+        replace_strs = ["$(EngineRoot)"]
         if language == "cpp":
-            # link_libs = WIN32_LINK_CPP_LIBS
-            replace_strs.append("$(ProjectDir)..\\cocos2d")
-            replace_strs.append("..\\cocos2d")
-        elif language == "lua":
-            # link_libs = WIN32_LINK_CPP_LIBS + WIN32_LINK_LUA_LIBS
-            replace_strs.append("$(ProjectDir)..\\..\\cocos2d-x")
-            replace_strs.append("..\\..\\cocos2d-x")
+            replace_strs.extend(("$(ProjectDir)..\\cocos2d", "..\\cocos2d"))
         else:
-            # link_libs = WIN32_LINK_CPP_LIBS + WIN32_LINK_JS_LIBS
-            replace_strs.append("$(ProjectDir)..\\..\\cocos2d-x")
-            replace_strs.append("..\\..\\cocos2d-x")
-
+            replace_strs.extend(("$(ProjectDir)..\\..\\cocos2d-x", "..\\..\\cocos2d-x"))
         # modify the Runtime.cpp
         vcx_proj_path = os.path.dirname(proj_file_path)
         cpp_path = os.path.join(vcx_proj_path, os.path.pardir, "Classes/runtime/Runtime.cpp")
         if os.path.exists(cpp_path):
-            f = open(cpp_path)
-            file_content = f.read()
-            f.close()
-
+            with open(cpp_path) as f:
+                file_content = f.read()
             file_content = file_content.replace("#ifndef _DEBUG", "#ifndef COCOS2D_DEBUG")
-            f = open(cpp_path, "w")
-            f.write(file_content)
-            f.close()
-
-        f = open(proj_file_path)
-        file_content = f.read()
-        f.close()
-
+            with open(cpp_path, "w") as f:
+                f.write(file_content)
+        with open(proj_file_path) as f:
+            file_content = f.read()
         if language == "lua":
             # replace the "lua\lua;" to "lua\luajit;"
             file_content = file_content.replace("lua\\lua;", "lua\\luajit\\include;")
@@ -218,7 +195,6 @@ class TemplateModifier(object):
         file_content = file_content.replace('%s\\' % install_path, install_path)
 
         file_content = file_content.replace("%scocos\\2d\\cocos2dx.props" % install_path, "cocos2dx.props")
-        
-        f = open(proj_file_path, "w")
-        f.write(file_content)
-        f.close()
+
+        with open(proj_file_path, "w") as f:
+            f.write(file_content)

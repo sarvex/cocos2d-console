@@ -16,8 +16,10 @@ class PackageInstall(cocos.CCPlugin):
     # parse arguments
     def parse_args(self, argv):
         from argparse import ArgumentParser
-        parser = ArgumentParser(prog="cocos package %s" % self.__class__.plugin_name(),
-                                description=self.__class__.brief_description())
+        parser = ArgumentParser(
+            prog=f"cocos package {self.__class__.plugin_name()}",
+            description=self.__class__.brief_description(),
+        )
         parser.add_argument("name", metavar="PACKAGE_NAME",
                             help=MultiLanguage.get_string('PACKAGE_INSTALL_ARG_NAME'))
         parser.add_argument("-f", action="store_true", dest="force",

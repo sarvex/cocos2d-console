@@ -46,10 +46,8 @@ class RemoveFrameworkHelper(object):
         workdir = remove_info["workdir"]
         remove_string = remove_info["string"]
 
-        f = open(filename, "rb")
-        lines = f.readlines()
-        f.close()
-
+        with open(filename, "rb") as f:
+            lines = f.readlines()
         contents = []
         tag_found = False
         for line in lines:
@@ -57,7 +55,7 @@ class RemoveFrameworkHelper(object):
             if match is None:
                 contents.append(line)
             else:
-                includes = shlex.split(match.group(2))
+                includes = shlex.split(match[2])
                 headers = []
                 for include in includes:
                     include = self.get_ios_mac_path(workdir, include)
@@ -66,28 +64,22 @@ class RemoveFrameworkHelper(object):
                 if remove_string in headers:
                     headers.remove(remove_string)
                 start, end = match.span(0)
-                parts = []
-                parts.append(line[:start])
-                parts.append(match.group(1))
-                parts.append(' ')
+                parts = [line[:start], match[1], ' ']
                 for header in headers:
                     if header.find(' ') != -1:
-                        header = '"' + header + '"'
-                    parts.append(header)
-                    parts.append(' ')
-                parts.append(match.group(3))
-                parts.append(line[end:])
+                        header = f'"{header}"'
+                    parts.extend((header, ' '))
+                parts.extend((match[3], line[end:]))
                 contents.append(''.join(parts))
                 tag_found = True
 
         if tag_found:
-            f = open(filename, "wb")
-            f.writelines(contents)
-            f.close()
+            with open(filename, "wb") as f:
+                f.writelines(contents)
 
     def do_remove_header_path(self, remove_info):
         platform = remove_info["platform"]
-        name = "do_remove_header_path_on_" + platform
+        name = f"do_remove_header_path_on_{platform}"
         cmd = getattr(self, name)
         cmd(remove_info)
 
@@ -99,10 +91,8 @@ class RemoveFrameworkHelper(object):
         workdir = remove_info["workdir"]
         remove_string = remove_info["string"]
 
-        f = open(filename, "rb")
-        lines = f.readlines()
-        f.close()
-
+        with open(filename, "rb") as f:
+            lines = f.readlines()
         contents = []
         tag_found = False
         for line in lines:
@@ -110,7 +100,7 @@ class RemoveFrameworkHelper(object):
             if match is None:
                 contents.append(line)
             else:
-                includes = re.split(';', match.group(2))
+                includes = re.split(';', match[2])
                 headers = []
                 for include in includes:
                     include = self.get_win32_path(workdir, include)
@@ -120,24 +110,18 @@ class RemoveFrameworkHelper(object):
                 if remove_string in headers:
                     headers.remove(remove_string)
                 start, end = match.span(0)
-                parts = []
-                parts.append(line[:start])
-                parts.append(match.group(1))
-                parts.append(';')
+                parts = [line[:start], match[1], ';']
                 for header in headers:
                     if header.find(' ') != -1:
-                        header = '"' + header + '"'
-                    parts.append(header)
-                    parts.append(';')
-                parts.append(match.group(3))
-                parts.append(line[end:])
+                        header = f'"{header}"'
+                    parts.extend((header, ';'))
+                parts.extend((match[3], line[end:]))
                 contents.append(''.join(parts))
                 tag_found = True
 
         if tag_found:
-            f = open(filename, "wb")
-            f.writelines(contents)
-            f.close()
+            with open(filename, "wb") as f:
+                f.writelines(contents)
 
     def do_remove_lib_on_android(self, remove_info):
         filename = remove_info["file"]
@@ -150,10 +134,8 @@ class RemoveFrameworkHelper(object):
         workdir = remove_info["workdir"]
         is_import = remove_info["is_import"]
 
-        f = open(filename, "rb")
-        lines = f.readlines()
-        f.close()
-
+        with open(filename, "rb") as f:
+            lines = f.readlines()
         contents = []
         lib_begin = False
         tag_found = False
@@ -162,7 +144,7 @@ class RemoveFrameworkHelper(object):
             if lib_begin == False:
                 contents.append(line)
                 match = re.search(begin_tag, line)
-                if not match is None:
+                if match is not None:
                     lib_begin = True
                     tag_found = True
             else:
@@ -182,17 +164,14 @@ class RemoveFrameworkHelper(object):
                     count = len(libs)
                     cur = 1
                     if count > 0 and prefix_tag is not None:
-                        contents.append(prefix_tag)
-                        contents.append(" += \\\n")
+                        contents.extend((prefix_tag, " += \\\n"))
                     for lib in libs:
                         if cur < count and prefix_tag is not None:
-                            contents.append('    ' + lib + ' \\')
+                            contents.append(f'    {lib}' + ' \\')
                         elif is_import is False:
-                            contents.append('    ' + lib)
+                            contents.append(f'    {lib}')
                         else:
-                            contents.append('$(call import-module,')
-                            contents.append(lib)
-                            contents.append(')')
+                            contents.extend(('$(call import-module,', lib, ')'))
                         contents.append("\n")
 
                     libs = []
@@ -200,9 +179,8 @@ class RemoveFrameworkHelper(object):
                     contents.append(line)
 
         if tag_found:
-            f = open(filename, "wb")
-            f.writelines(contents)
-            f.close()
+            with open(filename, "wb") as f:
+                f.writelines(contents)
 
     def do_remove_lib_on_ios_mac(self, remove_info):
         filename = remove_info["file"]
@@ -213,10 +191,8 @@ class RemoveFrameworkHelper(object):
         remove_string = remove_info["string"]
         workdir = remove_info["workdir"]
 
-        f = open(filename, "rb")
-        lines = f.readlines()
-        f.close()
-
+        with open(filename, "rb") as f:
+            lines = f.readlines()
         contents = []
         lib_begin = False
         tag_found = False
@@ -225,7 +201,7 @@ class RemoveFrameworkHelper(object):
             if lib_begin == False:
                 contents.append(line)
                 match = re.search(begin_tag, line)
-                if not match is None:
+                if match is not None:
                     lib_begin = True
                     tag_found = True
             else:
@@ -237,21 +213,18 @@ class RemoveFrameworkHelper(object):
                     if remove_string in libs:
                         libs.remove(remove_string)
                     libs = list(set(libs))
-                    for lib in libs:
-                        contents.append('\t\t\t\t\t"' + lib + '",\n')
-
+                    contents.extend('\t\t\t\t\t"' + lib + '",\n' for lib in libs)
                     libs = []
                     lib_begin = False
                     contents.append(line)
 
         if tag_found:
-            f = open(filename, "wb")
-            f.writelines(contents)
-            f.close()
+            with open(filename, "wb") as f:
+                f.writelines(contents)
 
     def do_remove_lib(self, remove_info):
         platform = remove_info["platform"]
-        name = "do_remove_lib_on_" + platform
+        name = f"do_remove_lib_on_{platform}"
         cmd = getattr(self, name)
         cmd(remove_info)
 
@@ -285,30 +258,25 @@ class RemoveFrameworkHelper(object):
         if not os.path.isfile(filename):
             return
 
-        f = open(filename, "rb")
-        all_text = f.read()
-        f.close()
-
+        with open(filename, "rb") as f:
+            all_text = f.read()
         find_index = all_text.find(remove_string.encode("ascii"))
         if find_index >= 0:
-            headers = all_text[0:find_index]
+            headers = all_text[:find_index]
             tails = all_text[find_index+len(remove_string):]
             all_text = headers + tails
-            f = open(filename, "wb")
-            f.write(all_text)
-            f.close()
+            with open(filename, "wb") as f:
+                f.write(all_text)
 
     def do_remove_string_from_jsonfile(self, filename, remove_items):
         if not os.path.isfile(filename):
             return
 
-        f = open(filename, "rb")
-        configs = json.load(f)
-        f.close()
-
+        with open(filename, "rb") as f:
+            configs = json.load(f)
         for remove_item in remove_items:
             key = remove_item["key"]
-            if not key in configs:
+            if key not in configs:
                 continue
 
             # found the key need to remove or to remove items
@@ -319,9 +287,8 @@ class RemoveFrameworkHelper(object):
                 # remove configs[key]
                 del(configs[key])
 
-        f = open(filename, "w+b")
-        str = json.dump(configs, f)
-        f.close()
+        with open(filename, "w+b") as f:
+            str = json.dump(configs, f)
 
     def remove_items_from_json(self, configs, remove_items):
         if isinstance(configs, list):
@@ -335,7 +302,7 @@ class RemoveFrameworkHelper(object):
             for item in remove_items:
                 if "key" in item:
                     key = item["key"]
-                    if not key in configs:
+                    if key not in configs:
                         continue
                     # found the key need to remove or to remove items
                     if "items" in item:
@@ -347,23 +314,25 @@ class RemoveFrameworkHelper(object):
 
     def get_ios_mac_path(self, project_path, source):
         source = source.strip(',"\t\n\r')
-        if not source[:10] == '$(SRCROOT)':
-            source = '$(SRCROOT)' + os.sep + os.path.relpath(self._project["packages_dir"] + os.sep + source,
-                                                             project_path)
+        if source[:10] != '$(SRCROOT)':
+            source = f'$(SRCROOT){os.sep}' + os.path.relpath(
+                self._project["packages_dir"] + os.sep + source, project_path
+            )
 
         return source.replace(os.sep, '/')
 
     def get_win32_path(self, project_path, source):
-        if source == ";" or source == "":
+        if source in [";", ""]:
             return None
 
         if source.find('\\') == -1 and source.find('/') == -1:
             return source
 
         source = source.strip(',"\t\n\r')
-        if not source[:13] == '$(ProjectDir)':
-            source = '$(ProjectDir)' + os.sep + os.path.relpath(self._project["packages_dir"] + os.sep + source,
-                                                             project_path)
+        if source[:13] != '$(ProjectDir)':
+            source = f'$(ProjectDir){os.sep}' + os.path.relpath(
+                self._project["packages_dir"] + os.sep + source, project_path
+            )
 
         return source.replace('/', '\\')
 
@@ -374,24 +343,23 @@ class RemoveFrameworkHelper(object):
             return source
 
         if source[-2:] == ' \\':
-            source = source[0:-2]
+            source = source[:-2]
         if source[:21] == '$(call import-module,':
             # strip "$(call import-module, ../../../../packages/"
             source = source[21:-1].strip('./\\')
             if source[:8] == "packages":
                 source = source[9:]
-        if not source[:13] == '$(LOCAL_PATH)':
+        if source[:13] != '$(LOCAL_PATH)':
             source = os.path.relpath(self._project["packages_dir"] + os.sep + source, project_path)
             if ignore_local_path is False:
-                source = '$(LOCAL_PATH)' + os.sep + source
+                source = f'$(LOCAL_PATH){os.sep}{source}'
 
         return source
 
     def get_uninstall_info(self):
         file_path = self._uninstall_json_path
         if os.path.isfile(file_path):
-            f = open(file_path, "rb")
-            self._uninstall_info = json.load(f)
-            f.close()
+            with open(file_path, "rb") as f:
+                self._uninstall_info = json.load(f)
         else:
             self._uninstall_info = []

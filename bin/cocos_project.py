@@ -40,16 +40,15 @@ class Project(object):
     def _parse_project_json(self, src_dir):
         proj_path = self._find_project_dir(src_dir)
         # config file is not found
-        if proj_path == None:
+        if proj_path is None:
             raise cocos.CCPluginError(MultiLanguage.get_string('PROJECT_CFG_NOT_FOUND_FMT',
                                       os.path.join(src_dir, Project.CONFIG)),
                                       cocos.CCPluginError.ERROR_PATH_NOT_FOUND)
 
         project_json = os.path.join(proj_path, Project.CONFIG)
         try:
-            f = open(project_json)
-            project_info = json.load(f)
-            f.close()
+            with open(project_json) as f:
+                project_info = json.load(f)
         except Exception:
             if f is not None:
                 f.close()
@@ -70,7 +69,7 @@ class Project(object):
         lang = lang.lower()
 
         # The config is invalid
-        if not (lang in Project.language_list()):
+        if lang not in Project.language_list():
             raise cocos.CCPluginError(MultiLanguage.get_string('PROJECT_CFG_INVALID_LANG_FMT',
                                       (Project.KEY_PROJ_TYPE, ', '.join(Project.list_for_display()))),
                                       cocos.CCPluginError.ERROR_WRONG_CONFIG)
@@ -119,10 +118,8 @@ class Project(object):
                 # windows root path, eg. c:\
                 if re.match(".+:\\\\$", path):
                     break
-            else:
-                # unix like use '/' as root path
-                if path == '/' :
-                    break
+            elif path == '/':
+                break
             cfg_path = os.path.join(path, Project.CONFIG)
             if (os.path.exists(cfg_path) and os.path.isfile(cfg_path)):
                 return path
@@ -133,32 +130,23 @@ class Project(object):
 
     def get_proj_config(self, key):
         project_json = os.path.join(self._project_dir, Project.CONFIG)
-        f = open(project_json)
-        project_info = json.load(f)
-        f.close()
-
-        ret = None
-        if project_info.has_key(key):
-            ret = project_info[key]
-
-        return ret
+        with open(project_json) as f:
+            project_info = json.load(f)
+        return project_info[key] if project_info.has_key(key) else None
 
     def write_proj_config(self, key, value):
         project_json = os.path.join(self._project_dir, Project.CONFIG)
 
         if os.path.isfile(project_json):
-            f = open(project_json)
-            project_info = json.load(f)
-            f.close()
-
+            with open(project_json) as f:
+                project_info = json.load(f)
         if project_info is None:
             project_info = {}
 
         project_info[key] = value
 
-        outfile = open(project_json, "w")
-        json.dump(project_info, outfile, sort_keys = True, indent = 4)
-        outfile.close()
+        with open(project_json, "w") as outfile:
+            json.dump(project_info, outfile, sort_keys = True, indent = 4)
 
     def get_project_dir(self):
         return self._project_dir
@@ -243,15 +231,12 @@ class Platforms(object):
                         Platforms.METRO, Platforms.TIZEN ]
         }
         for p in platforms:
-            if cocos.os_is_linux():
-                if p in platforms_for_os["linux"]:
-                    ret.append(p)
-            if cocos.os_is_mac():
-                if p in platforms_for_os["mac"]:
-                    ret.append(p)
-            if cocos.os_is_win32():
-                if p in platforms_for_os["win32"]:
-                    ret.append(p)
+            if cocos.os_is_linux() and p in platforms_for_os["linux"]:
+                ret.append(p)
+            if cocos.os_is_mac() and p in platforms_for_os["mac"]:
+                ret.append(p)
+            if cocos.os_is_win32() and p in platforms_for_os["win32"]:
+                ret.append(p)
 
         return ret
 
@@ -261,18 +246,16 @@ class Platforms(object):
             if self._project._is_native_support():
                 platform_list = [ Platforms.ANDROID, Platforms.WIN32, Platforms.IOS, Platforms.MAC, Platforms.LINUX, Platforms.TIZEN ]
             else:
-                if self._project.has_android_libs():
-                    platform_list = [ Platforms.ANDROID ]
-                else:
-                    platform_list = []
+                platform_list = (
+                    [Platforms.ANDROID] if self._project.has_android_libs() else []
+                )
         elif self._project._is_js_project():
             if self._project._is_native_support():
                 platform_list = [ Platforms.ANDROID, Platforms.WIN32, Platforms.IOS, Platforms.MAC, Platforms.WEB, Platforms.LINUX, Platforms.METRO, Platforms.TIZEN ]
+            elif self._project.has_android_libs():
+                platform_list = [ Platforms.ANDROID, Platforms.WEB ]
             else:
-                if self._project.has_android_libs():
-                    platform_list = [ Platforms.ANDROID, Platforms.WEB ]
-                else:
-                    platform_list = [ Platforms.WEB ]
+                platform_list = [ Platforms.WEB ]
         elif self._project._is_cpp_project():
             platform_list = [ Platforms.ANDROID, Platforms.WIN32, Platforms.IOS, Platforms.MAC, Platforms.LINUX, Platforms.METRO, Platforms.TIZEN ]
 
@@ -287,7 +270,7 @@ class Platforms(object):
             if cfg_class is None:
                 continue
 
-            cfg_key = "%s_cfg" % p
+            cfg_key = f"{p}_cfg"
             if proj_info.has_key(cfg_key):
                 cfg_obj = cfg_class(root_path, self._project._is_script_project(), proj_info[cfg_key])
             else:
@@ -295,12 +278,12 @@ class Platforms(object):
 
             if proj_dir is not None:
                 cfg_obj.proj_path = os.path.join(root_path, proj_dir)
-                
+
             if cfg_obj._is_available():
                 self._available_platforms[p] = cfg_obj
 
         # don't have available platforms
-        if len(self._available_platforms) == 0:
+        if not self._available_platforms:
             raise cocos.CCPluginError(MultiLanguage.get_string('PROJECT_NO_AVAILABLE_PLATFORMS'),
                                       cocos.CCPluginError.ERROR_WRONG_CONFIG)
 
@@ -338,10 +321,7 @@ class Platforms(object):
         return self._current == Platforms.TIZEN
 
     def get_current_config(self):
-        if self.none_active():
-            return None
-
-        return self._available_platforms[self._current]
+        return None if self.none_active() else self._available_platforms[self._current]
 
     def project_path(self):
         if self._current is None:
@@ -382,11 +362,7 @@ class PlatformConfig(object):
             self.proj_path = None
 
     def _is_available(self):
-        ret = True
-        if self.proj_path is None or not os.path.isdir(self.proj_path):
-            ret = False
-
-        return ret
+        return bool(self.proj_path is not None and os.path.isdir(self.proj_path))
 
 class AndroidConfig(PlatformConfig):
 
@@ -400,8 +376,7 @@ class AndroidConfig(PlatformConfig):
         super(AndroidConfig, self)._parse_info(cfg_info)
 
     def _is_available(self):
-        proj_android_existed = super(AndroidConfig, self)._is_available()
-        return proj_android_existed
+        return super(AndroidConfig, self)._is_available()
 
 class iOSConfig(PlatformConfig):
     KEY_PROJ_FILE = "project_file"
@@ -429,9 +404,7 @@ class iOSConfig(PlatformConfig):
             self.target_name = None
 
     def _is_available(self):
-        ret = super(iOSConfig, self)._is_available()
-
-        return ret
+        return super(iOSConfig, self)._is_available()
 
 class MacConfig(PlatformConfig):
 
@@ -457,9 +430,7 @@ class MacConfig(PlatformConfig):
             self.target_name = None
 
     def _is_available(self):
-        ret = super(MacConfig, self)._is_available()
-
-        return ret
+        return super(MacConfig, self)._is_available()
 
 class Win32Config(PlatformConfig):
     KEY_SLN_FILE = "sln_file"
@@ -501,9 +472,7 @@ class Win32Config(PlatformConfig):
             self.exe_out_dir = None
 
     def _is_available(self):
-        ret = super(Win32Config, self)._is_available()
-
-        return ret
+        return super(Win32Config, self)._is_available()
 
 class LinuxConfig(PlatformConfig):
     KEY_CMAKE_PATH = "cmake_path"
@@ -545,9 +514,7 @@ class LinuxConfig(PlatformConfig):
             self.build_result_dir = None
 
     def _is_available(self):
-        ret = super(LinuxConfig, self)._is_available()
-
-        return ret
+        return super(LinuxConfig, self)._is_available()
 
 class WebConfig(PlatformConfig):
     KEY_SUB_URL = "sub_url"
@@ -609,9 +576,7 @@ class MetroConfig(PlatformConfig):
             self.project_name = None
 
     def _is_available(self):
-        ret = super(MetroConfig, self)._is_available()
-
-        return ret
+        return super(MetroConfig, self)._is_available()
 
 class TizenConfig(PlatformConfig):
     def _use_default(self):
@@ -624,6 +589,4 @@ class TizenConfig(PlatformConfig):
         super(TizenConfig, self)._parse_info(cfg_info)
 
     def _is_available(self):
-        ret = super(TizenConfig, self)._is_available()
-
-        return ret
+        return super(TizenConfig, self)._is_available()

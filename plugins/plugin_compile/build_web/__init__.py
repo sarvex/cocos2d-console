@@ -20,11 +20,7 @@ def check_jdk_version():
     jdk_version = None
     for line in child.stderr:
         if 'java version' in line:
-            if '1.6' in line:
-                jdk_version = JDK_1_6
-            else:
-                jdk_version = JDK_1_7
-
+            jdk_version = JDK_1_6 if '1.6' in line else JDK_1_7
     child.wait()
 
     if jdk_version is None:
@@ -51,7 +47,11 @@ def gen_buildxml(project_dir, project_json, output_dir, build_opts):
     compiler_1_7 = os.path.join(tools_dir, "bin", "compiler-1.7.jar")
     if not os.path.exists(compiler_1_6) or not os.path.exists(compiler_1_7):
         download_cmd_path = os.path.join(tools_dir, os.pardir, os.pardir, os.pardir)
-        subprocess.call("python %s -f" % (os.path.join(download_cmd_path, "download-bin.py")), shell=True, cwd=download_cmd_path)
+        subprocess.call(
+            f'python {os.path.join(download_cmd_path, "download-bin.py")} -f',
+            shell=True,
+            cwd=download_cmd_path,
+        )
 
     try:
         f = open(os.path.join(engine_dir, "moduleConfig.json"))
@@ -67,7 +67,7 @@ def gen_buildxml(project_dir, project_json, output_dir, build_opts):
     userJsList = project_json.get("jsList", [])
 
     if renderMode != 1 and "base4webgl" not in modules:
-        modules[0:0] = ["base4webgl"]
+        modules[:0] = ["base4webgl"]
 
     for item in modules:
         arr = _getJsListOfModule(ccModuleMap, item)
@@ -96,16 +96,17 @@ def gen_buildxml(project_dir, project_json, output_dir, build_opts):
     buildContent = buildContent.replace("%publishDir%", publish_dir)
     buildContent = buildContent.replace("%outputFileName%", build_opts["outputFileName"])
     buildContent = buildContent.replace("%toolsDir%", tools_dir)
-    buildContent = buildContent.replace("%compiler%", "compiler-%s.jar" % jdk_version)
+    buildContent = buildContent.replace(
+        "%compiler%", f"compiler-{jdk_version}.jar"
+    )
     buildContent = buildContent.replace("%compilationLevel%", build_opts["compilationLevel"])
     buildContent = buildContent.replace("%sourceMapCfg%",  sourceMapContent)
     buildContent = buildContent.replace("%ccJsList%", _getFileArrStr(ccJsList))
     buildContent = buildContent.replace("%userJsList%", _getFileArrStr(userJsList))
     buildContent = buildContent.replace("%debug%", build_opts["debug"])
 
-    buildXmlOutputFile = open(os.path.join(publish_dir, "build.xml"), "w")
-    buildXmlOutputFile.write(buildContent)
-    buildXmlOutputFile.close()
+    with open(os.path.join(publish_dir, "build.xml"), "w") as buildXmlOutputFile:
+        buildXmlOutputFile.write(buildContent)
 
 
 _jsAddedCache = {}
@@ -122,7 +123,7 @@ def _getJsListOfModule(moduleMap, moduleName):
             continue
         extname = os.path.splitext(item)[1]
 
-        if extname == None or extname == "":
+        if extname is None or extname == "":
             arr = _getJsListOfModule(moduleMap, item)
             if arr != None:
                 jsList += arr
@@ -135,11 +136,8 @@ def _getJsListOfModule(moduleMap, moduleName):
 
 
 def _getFileArrStr(jsList):
-    str = ""
-
     index = 0
-    for item in jsList:
-        str += '                <file name="' + item + '"/>\r\n'
-
-    return str
+    return "".join(
+        f'                <file name="{item}' + '"/>\r\n' for item in jsList
+    )
 

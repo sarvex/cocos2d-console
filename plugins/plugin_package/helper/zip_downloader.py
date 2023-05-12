@@ -33,43 +33,42 @@ class ZipDownloader(object):
                   (str(e.code), e.read())))
             sys.exit(1)
 
-        f = open(self._filename, 'wb')
-        file_size = self._zip_file_size
-        print(MultiLanguage.get_string('PACKAGE_START_DOWNLOAD'))
+        with open(self._filename, 'wb') as f:
+            file_size = self._zip_file_size
+            print(MultiLanguage.get_string('PACKAGE_START_DOWNLOAD'))
 
-        file_size_dl = 0
-        block_sz = 8192
-        block_size_per_second = 0
-        old_time = time()
+            file_size_dl = 0
+            block_sz = 8192
+            block_size_per_second = 0
+            old_time = time()
 
-        while True:
-            buf = u.read(block_sz)
-            if not buf:
-                break
+            while True:
+                buf = u.read(block_sz)
+                if not buf:
+                    break
 
-            file_size_dl += len(buf)
-            block_size_per_second += len(buf)
-            f.write(buf)
-            new_time = time()
-            if (new_time - old_time) > 1:
-                speed = block_size_per_second / (new_time - old_time) / 1000.0
-                status = ""
-                if file_size != 0:
-                    percent = file_size_dl * 100. / file_size
-                    status = MultiLanguage.get_string('PACKAGE_DOWNLOAD_PERCENT_FMT_1',
-                                                      (file_size_dl / 1000, file_size / 1000, percent, speed))
-                else:
-                    status = MultiLanguage.get_string('PACKAGE_DOWNLOAD_PERCENT_FMT_2',
-                                                      (file_size_dl / 1000, speed))
+                file_size_dl += len(buf)
+                block_size_per_second += len(buf)
+                f.write(buf)
+                new_time = time()
+                if (new_time - old_time) > 1:
+                    speed = block_size_per_second / (new_time - old_time) / 1000.0
+                    status = ""
+                    if file_size != 0:
+                        percent = file_size_dl * 100. / file_size
+                        status = MultiLanguage.get_string('PACKAGE_DOWNLOAD_PERCENT_FMT_1',
+                                                          (file_size_dl / 1000, file_size / 1000, percent, speed))
+                    else:
+                        status = MultiLanguage.get_string('PACKAGE_DOWNLOAD_PERCENT_FMT_2',
+                                                          (file_size_dl / 1000, speed))
 
-                status += chr(8) * (len(status) + 1)
-                print(status),
-                sys.stdout.flush()
-                block_size_per_second = 0
-                old_time = new_time
+                    status += chr(8) * (len(status) + 1)
+                    print(status),
+                    sys.stdout.flush()
+                    block_size_per_second = 0
+                    old_time = new_time
 
-        print(MultiLanguage.get_string('PACKAGE_DOWNLOAD_END'))
-        f.close()
+            print(MultiLanguage.get_string('PACKAGE_DOWNLOAD_END'))
 
     def check_file_md5(self):
         if not os.path.isfile(self._filename):
@@ -79,10 +78,10 @@ class ZipDownloader(object):
         md5 = hashlib.md5()
         f = open(self._filename)
         while True:
-            data = f.read(block_size)
-            if not data:
+            if data := f.read(block_size):
+                md5.update(data)
+            else:
                 break
-            md5.update(data)
         hashcode = md5.hexdigest()
         return hashcode == self._package_data["md5"]
 

@@ -61,7 +61,7 @@ class Builder(object):
             self.src_path = os.path.abspath(src_path)
 
         if not os.path.isdir(self.src_path):
-            raise Exception("%s is not a available path." % self.src_path)
+            raise Exception(f"{self.src_path} is not a available path.")
 
         self.entrance_file = os.path.join(self.src_path, Builder.ENTRANCE_FILE)
 
@@ -81,9 +81,8 @@ class Builder(object):
 
         # parse config file
         cfg_file = os.path.join(self.my_path, Builder.CONFIG_FILE)
-        f = open(cfg_file)
-        self.cfg_info = json.load(f)
-        f.close()
+        with open(cfg_file) as f:
+            self.cfg_info = json.load(f)
 
     def _get_dirs(self, path, dir_list=None):
         if dir_list is None:
@@ -112,22 +111,19 @@ class Builder(object):
         pattern = modify_info["pattern"]
         replace_str = modify_info["replace_string"]
 
-        f = open(modify_file)
-        lines = f.readlines()
-        f.close()
-
+        with open(modify_file) as f:
+            lines = f.readlines()
         new_lines = []
         for line in lines:
             new_line = re.sub(pattern, replace_str, line)
             new_lines.append(new_line)
 
-        f = open(modify_file, "w")
-        f.writelines(new_lines)
-        f.close()
+        with open(modify_file, "w") as f:
+            f.writelines(new_lines)
 
     def do_build(self):
-        print("Source Path : %s" % self.src_path)
-        print("Output Path : %s" % self.dst_path)
+        print(f"Source Path : {self.src_path}")
+        print(f"Output Path : {self.dst_path}")
         print("Start building")
 
         if os.path.exists(self.dst_path):
@@ -157,11 +153,8 @@ class Builder(object):
         dir_list.append(bin_path)
         dir_list.append(self.src_path)
 
-        if os_is_win32():
-            sep = ";"
-        else:
-            sep = ":"
-        path_param = "-p %s" % sep.join(dir_list)
+        sep = ";" if os_is_win32() else ":"
+        path_param = f"-p {sep.join(dir_list)}"
 
         # get the runtime-hook parameter
         _cp = ConfigParser.ConfigParser(allow_no_value=True)
@@ -179,28 +172,28 @@ class Builder(object):
 
         if len(hidden_import_cfg) > 0:
             for key in hidden_import_cfg:
-                hidden_import_param += "--hidden-import %s " % key
-                runtime_hook_param += '--runtime-hook "%s" ' % os.path.join(self.src_path, hidden_import_cfg[key])
+                hidden_import_param += f"--hidden-import {key} "
+                runtime_hook_param += f'--runtime-hook "{os.path.join(self.src_path, hidden_import_cfg[key])}" '
 
         for s in _cp.sections():
             if s == 'plugins':
                 for classname in _cp.options(s):
                     parts = classname.split(".")
                     module_name = parts[0]
-                    hidden_import_param += "--hidden-import %s " % module_name
+                    hidden_import_param += f"--hidden-import {module_name} "
 
                     module_path = os.path.join(plugins_path, module_name)
                     if os.path.isdir(module_path):
-                        runtime_hook_param += '--runtime-hook "%s" ' % ("%s/__init__.py" % module_path)
+                        runtime_hook_param += f'--runtime-hook "{module_path}/__init__.py" '
                     else:
-                        module_file = "%s.py" % module_path
+                        module_file = f"{module_path}.py"
                         if os.path.isfile(module_file):
-                            runtime_hook_param += '--runtime-hook "%s" ' % module_file
+                            runtime_hook_param += f'--runtime-hook "{module_file}" '
 
         # additional hooks path
-        add_hook_dir_param = '--additional-hooks-dir "%s" ' % plugins_path
-        add_hook_dir_param += '--additional-hooks-dir "%s" ' % bin_path
-        add_hook_dir_param += '--additional-hooks-dir "%s"' % self.src_path
+        add_hook_dir_param = f'--additional-hooks-dir "{plugins_path}" '
+        add_hook_dir_param += f'--additional-hooks-dir "{bin_path}" '
+        add_hook_dir_param += f'--additional-hooks-dir "{self.src_path}"'
 
         # build *.py
         if os_is_linux():
@@ -210,7 +203,14 @@ class Builder(object):
         work_path = spec_path
         if os.path.exists(spec_path):
             shutil.rmtree(spec_path)
-        build_cmd = Builder.CMD_FORMAT % (path_param, '%s %s %s' % (hidden_import_param, add_hook_dir_param, runtime_hook_param), self.dst_path, spec_path, work_path, self.entrance_file)
+        build_cmd = Builder.CMD_FORMAT % (
+            path_param,
+            f'{hidden_import_param} {add_hook_dir_param} {runtime_hook_param}',
+            self.dst_path,
+            spec_path,
+            work_path,
+            self.entrance_file,
+        )
         run_shell(build_cmd)
 
         print("Building succeed.")
@@ -223,7 +223,7 @@ if __name__ == "__main__":
     (args, unknown) = parser.parse_known_args()
 
     if len(unknown) > 0:
-        print("unknown arguments: %s" % unknown)
+        print(f"unknown arguments: {unknown}")
 
     builder = Builder(args)
     builder.do_build()

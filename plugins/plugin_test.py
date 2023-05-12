@@ -30,11 +30,11 @@ class CCPluginTest(cocos.CCPlugin):
         return "useful to test the plugin framework"
 
     def run(self, argv, dependencies):
-        print("cocos2d path: %s" % self.get_cocos2d_path())
-        print("console path: %s" % self.get_console_path())
-        print("templates paths: %s" % self.get_templates_paths())
+        print(f"cocos2d path: {self.get_cocos2d_path()}")
+        print(f"console path: {self.get_console_path()}")
+        print(f"templates paths: {self.get_templates_paths()}")
 
         parser = cocos.Cocos2dIniParser()
-        print("plugins path: %s" % parser.get_plugins_path())
+        print(f"plugins path: {parser.get_plugins_path()}")
 
-        print("cocos2d mode: %s" % self.get_cocos2d_mode())
+        print(f"cocos2d mode: {self.get_cocos2d_mode()}")

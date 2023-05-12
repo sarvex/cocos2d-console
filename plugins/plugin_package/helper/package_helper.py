@@ -15,10 +15,7 @@ from zip_downloader import ZipDownloader
 def convert_version_part(version_part):
     tag = '(\d+)(\D*.*)'
     match = re.search(tag, version_part)
-    if match is None:
-        return 0
-
-    return int(match.group(1)), match.group(2)
+    return 0 if match is None else (int(match[1]), match[2])
 
 def compare_extra_version_string(str1, str2):
     if str1 == str2:
@@ -29,10 +26,7 @@ def compare_extra_version_string(str1, str2):
     elif len(str2) == 0:
         return -1
 
-    if str1 > str2:
-        return 1
-    else:
-        return -1
+    return 1 if str1 > str2 else -1
 
 
 def compare_version(version1, version2):
@@ -43,11 +37,11 @@ def compare_version(version1, version2):
 
     if n1 > n2:
         n = n1
-        for x in xrange(n2,n):
+        for _ in xrange(n2,n):
             v2.append("0")
     else:
         n = n2
-        for x in xrange(n1,n):
+        for _ in xrange(n1,n):
             v1.append("0")
 
     for x in xrange(0,n):
@@ -57,7 +51,7 @@ def compare_version(version1, version2):
             return 1
         elif ver_num2 > ver_num1:
             return -1
-        
+
         c = compare_extra_version_string(ver_str1, ver_str2)
         if c != 0:
             return c
@@ -80,12 +74,9 @@ def get_packages_adapt_engine(packages, engine):
         else:
             flag = False
         c = compare_version(engine, package_engine)
-        if flag and c >= 0:
+        if flag and c >= 0 or c == 0:
             packages_out.append(package)
-        elif c == 0:
-            packages_out.append(package)
-
-    if len(packages_out) > 0:
+    if packages_out:
         return packages_out
 
 class PackageHelper:
@@ -172,11 +163,10 @@ class PackageHelper:
         keys.reverse()
         for key in keys:
             package_data = packages[key]
-            if package_data["name"] == package_name:
-                if version == None:
-                    return package_data
-                elif package_data["version"] == version:
-                    return package_data
+            if package_data["name"] == package_name and (
+                version is None or package_data["version"] == version
+            ):
+                return package_data
 
     @classmethod
     def get_installed_package_newest_version(cls, package_name, engine = None):
@@ -195,7 +185,7 @@ class PackageHelper:
         if n < 1:
             return
 
-        if not engine is None:
+        if engine is not None:
             package_list = get_packages_adapt_engine(package_list, engine)
             if package_list is None:
                 return

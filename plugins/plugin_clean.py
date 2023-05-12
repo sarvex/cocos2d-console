@@ -56,7 +56,7 @@ class CCPluginClean(cocos2d.CCPlugin):
             try:
                 shutil.rmtree(path)
             except OSError as e:
-                raise cocos2d.CCPluginError("Error removing directory: " + str(e.args))
+                raise cocos2d.CCPluginError(f"Error removing directory: {str(e.args)}")
 
 
     def run(self, argv, dependencies):

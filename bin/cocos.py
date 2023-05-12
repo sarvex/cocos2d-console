@@ -59,12 +59,7 @@ class Cocos2dIniParser:
                     name = plugin_class.plugin_name()
                     if name is None:
                         print(MultiLanguage.get_string('COCOS_PARSE_PLUGIN_WARNING_FMT', classname))
-                    if len(category) == 0:
-                        key = name
-                    else:
-                        # combine category & name as key
-                        # eg. 'project_new'
-                        key = category + '_' + name
+                    key = name if len(category) == 0 else f'{category}_{name}'
                     classes[key] = plugin_class
         _check_dependencies(classes)
         return classes
@@ -179,7 +174,7 @@ class CMDRunner(object):
             Logging.debug(MultiLanguage.get_string('COCOS_DEBUG_RUNNING_CMD_FMT', ''.join(command)))
         else:
             log_path = CCPlugin._log_path()
-            command += ' >"%s" 2>&1' % log_path
+            command += f' >"{log_path}" 2>&1'
         sys.stdout.flush()
         ret = subprocess.call(command, shell=True, cwd=cwd)
         if ret != 0:
@@ -271,16 +266,14 @@ class DataStatistic(object):
             cur_info = None
         else:
             try:
-                f = open(local_cfg_file)
-                cur_info = json.load(f)
-                f.close()
+                with open(local_cfg_file) as f:
+                    cur_info = json.load(f)
             except:
                 cur_info = None
 
         ret = default_value
-        if cur_info is not None:
-            if key in cur_info:
-                ret = cur_info[key]
+        if cur_info is not None and key in cur_info:
+            ret = cur_info[key]
 
         return ret
 
@@ -292,9 +285,8 @@ class DataStatistic(object):
             cur_info = {}
         else:
             try:
-                f = open(cfg_file)
-                cur_info = json.load(f)
-                f.close()
+                with open(cfg_file) as f:
+                    cur_info = json.load(f)
             except:
                 cur_info = {}
 
@@ -306,10 +298,8 @@ class DataStatistic(object):
         if not os.path.exists(cfg_dir):
             os.makedirs(cfg_dir)
 
-        # write the config
-        f = open(cfg_file, 'w')
-        json.dump(cur_info, f, sort_keys=True, indent=4)
-        f.close()
+        with open(cfg_file, 'w') as f:
+            json.dump(cur_info, f, sort_keys=True, indent=4)
 
     # get the stat agreed or not
     @classmethod
@@ -322,19 +312,16 @@ class DataStatistic(object):
 
         # write the config to ini
         ini_file = os.path.join(get_current_path(), "cocos2d.ini")
-        f = open(ini_file)
-        old_lines = f.readlines()
-        f.close()
-
-        new_str = 'enable_stat=%s' % ('true' if agreed else 'false')
+        with open(ini_file) as f:
+            old_lines = f.readlines()
+        new_str = f"enable_stat={'true' if agreed else 'false'}"
         new_lines = []
         for line in old_lines:
             new_line = re.sub('enable_stat[ \t]*=(.*)$', new_str, line)
             new_lines.append(new_line)
 
-        f = open(ini_file, 'w')
-        f.writelines(new_lines)
-        f.close()
+        with open(ini_file, 'w') as f:
+            f.writelines(new_lines)
 
     @classmethod
     def show_stat_agreement(cls, skip_agree_value=None):
@@ -344,7 +331,7 @@ class DataStatistic(object):
         if skip_agree_value is None:
             # show the agreement
             input_value = raw_input(MultiLanguage.get_string('COCOS_AGREEMENT'))
-            agreed = (input_value.lower() != 'n' and input_value.lower() != 'no')
+            agreed = input_value.lower() not in ['n', 'no']
         else:
             # --agreement is used to skip the input
             agreed = skip_agree_value
@@ -469,8 +456,7 @@ class CCPlugin(object):
     @classmethod
     def get_console_path(cls):
         """returns the path where cocos console is installed"""
-        run_path = unicode(get_current_path(), "utf-8")
-        return run_path
+        return unicode(get_current_path(), "utf-8")
 
     @classmethod
     def get_templates_paths(cls):
@@ -504,9 +490,7 @@ class CCPlugin(object):
                         paths.append(template_path)
                 except Exception as e:
                     Logging.info(MultiLanguage.get_string('COCOS_INFO_CHECK_TEMPLATE_PATH_FAILED_FMT', template_path))
-                    Logging.info("%s" % e)
-                    pass
-
+                    Logging.info(f"{e}")
         #
         # 3: Templates can be in ~/.cocos2d/templates as well
         #
@@ -514,7 +498,7 @@ class CCPlugin(object):
         if os.path.isdir(user_path):
             paths.append(user_path)
 
-        if len(paths) == 0:
+        if not paths:
             raise CCPluginError(MultiLanguage.get_string('COCOS_ERROR_TEMPLATE_NOT_FOUND'),
                                 CCPluginError.ERROR_PATH_NOT_FOUND)
 
@@ -592,8 +576,10 @@ class CCPlugin(object):
 
         # FIXME:
         # CCPlugin should not parse any argument. Plugins are responsoble for doing it
-        parser = ArgumentParser(prog="cocos %s" % self.__class__.plugin_name(),
-                                description=self.__class__.brief_description())
+        parser = ArgumentParser(
+            prog=f"cocos {self.__class__.plugin_name()}",
+            description=self.__class__.brief_description(),
+        )
         parser.add_argument("-s", "--src",
                             dest="src_dir",
                             help=MultiLanguage.get_string('COCOS_HELP_ARG_SRC'))
@@ -644,22 +630,21 @@ class CCPlugin(object):
 
 
 def get_current_path():
-    if getattr(sys, 'frozen', None):
-        ret = os.path.realpath(os.path.dirname(sys.executable))
-    else:
-        ret = os.path.realpath(os.path.dirname(__file__))
-
-    return ret
+    return (
+        os.path.realpath(os.path.dirname(sys.executable))
+        if getattr(sys, 'frozen', None)
+        else os.path.realpath(os.path.dirname(__file__))
+    )
 
 
 # get_class from: http://stackoverflow.com/a/452981
 def get_class(kls):
     parts = kls.split('.')
-    module = ".".join(parts[:-1])
     if len(parts) == 1:
         m = sys.modules[__name__]
         m = getattr(m, parts[0])
     else:
+        module = ".".join(parts[:-1])
         m = __import__(module)
         for comp in parts[1:]:
             m = getattr(m, comp)
@@ -718,13 +703,10 @@ def get_xcode_version():
     return version
 
 def app_is_installed(adb_cmd, pack_name):
-    list_pack_cmd = "%s shell 'pm list packages'" % (adb_cmd)
-    desired_name = "package:%s" % (pack_name)
+    list_pack_cmd = f"{adb_cmd} shell 'pm list packages'"
+    desired_name = f"package:{pack_name}"
     child = subprocess.Popen(list_pack_cmd, stdout=subprocess.PIPE, shell=True)
-    for line in child.stdout:
-        if desired_name == line.strip():
-            return True
-    return False
+    return any(desired_name == line.strip() for line in child.stdout)
 
 def version_compare(a, op, b):
     '''Compares two version numbers to see if a op b is true
@@ -738,7 +720,7 @@ def version_compare(a, op, b):
     '''
     allowed = [">", "<", "==", "!=", ">=", "<="]
     if op not in allowed:
-        raise ValueError("op must be one of {}".format(allowed))
+        raise ValueError(f"op must be one of {allowed}")
 
     # Use recursion to simplify operators:
     if op[0] == "<": # Reverse args and inequality sign:
@@ -761,16 +743,11 @@ def version_compare(a, op, b):
         if len(b) > i:
             bi = b[i]
         if ai > bi:
-            if op == ">":
-                return True
-            else: # op "=="
-                return False
+            return op == ">"
         if ai < bi:
             # Both "==" and ">" are False:
             return False
-    if op == ">":
-        return False    # op ">" and all digits were equal
-    return True         # op "==" and all digits were equal
+    return op != ">"
 
 def copy_files_in_dir(src, dst):
 
@@ -839,7 +816,7 @@ def copy_files_with_rules(src_rootDir, src, dst, include=None, exclude=None):
                     abs_path = add_path_prefix(abs_path)
                     copy_dst = add_path_prefix(dst)
                     shutil.copy(abs_path, copy_dst)
-    elif (exclude is not None):
+    else:
         # have exclude
         for name in os.listdir(src):
             abs_path = os.path.join(src, name)
@@ -873,7 +850,7 @@ def convert_rules(rules):
     for rule in rules:
         ret = rule.replace('.', '\\.')
         ret = ret.replace('*', '.*')
-        ret = "%s" % ret
+        ret = f"{ret}"
         ret_rules.append(ret)
 
     return ret_rules
@@ -933,7 +910,7 @@ def help():
     for key in classes.keys():
         plugin_class = classes[key]
         category = plugin_class.plugin_category()
-        category = (category + ' ') if len(category) > 0 else ''
+        category = f'{category} ' if len(category) > 0 else ''
         name = plugin_class.plugin_name()
         print("\t%s%s%s%s" % (category, name,
                               ' ' * (max_name - len(name + category)),
@@ -945,14 +922,10 @@ def help():
 
 def show_version():
     print(COCOS_ENGINE_VERSION)
-    print("Cocos Console %s" % COCOS2D_CONSOLE_VERSION)
+    print(f"Cocos Console {COCOS2D_CONSOLE_VERSION}")
 
 def run_plugin(command, argv, plugins):
-    run_directly = False
-    if len(argv) > 0:
-        if argv[0] in ['--help', '-h']:
-            run_directly = True
-
+    run_directly = len(argv) > 0 and argv[0] in ['--help', '-h']
     plugin = plugins[command]()
 
     if run_directly:
@@ -974,12 +947,7 @@ def run_plugin(command, argv, plugins):
 def _check_python_version():
     major_ver = sys.version_info[0]
     minor_ver = sys.version_info[1]
-    ret = True
-    if major_ver != 2:
-        ret = False
-    elif minor_ver < 7:
-        ret = False
-
+    ret = major_ver == 2 and minor_ver >= 7
     if not ret:
         print(MultiLanguage.get_string('COCOS_PYTHON_VERSION_TIP_FMT') % (major_ver, minor_ver))
 
@@ -995,7 +963,7 @@ except:
     pass
 
 if language is not None:
-    filename = "language_%s.mo" % language[0:2]
+    filename = f"language_{language[:2]}.mo"
     try:
         trans = gettext.GNUTranslations(open(filename, "rb"))
     except IOError:
@@ -1031,11 +999,7 @@ if __name__ == "__main__":
 
         # get the argument value
         agree_value = sys.argv[idx+1]
-        if agree_value.lower() == 'n':
-            skip_agree_value = False
-        else:
-            skip_agree_value = True
-
+        skip_agree_value = agree_value.lower() != 'n'
         # remove the argument '--agreement' & the value
         sys.argv.pop(idx)
         sys.argv.pop(idx)
@@ -1046,9 +1010,8 @@ if __name__ == "__main__":
     COCOS_ENGINE_VERSION = utils.get_engine_version(engine_path)
     STAT_VERSION = COCOS_ENGINE_VERSION
     ver_pattern = r"cocos2d-x-(.*)"
-    match = re.match(ver_pattern, COCOS_ENGINE_VERSION)
-    if match:
-        STAT_VERSION = match.group(1)
+    if match := re.match(ver_pattern, COCOS_ENGINE_VERSION):
+        STAT_VERSION = match[1]
 
     DataStatistic.show_stat_agreement(skip_agree_value)
     DataStatistic.stat_event('cocos', 'start', 'invoked')
@@ -1076,41 +1039,30 @@ if __name__ == "__main__":
         command = sys.argv[1]
         argv = sys.argv[2:]
         # try to find plugin by name
-        if command in plugins:
-            DataStatistic.stat_event('cocos', 'running_command', command)
-            run_plugin(command, argv, plugins)
-        else:
-            # try to find plugin by category_name, so the len(sys.argv) at
-            # least 3.
-            if len(sys.argv) > 2:
-                # combine category & name as key
-                # eg. 'project_new'
-                command = sys.argv[1] + '_' + sys.argv[2]
-                argv = sys.argv[3:]
-                if command in plugins:
-                    DataStatistic.stat_event('cocos', 'running_command', command)
-                    run_plugin(command, argv, plugins)
-                else:
-                    raise CCPluginError(MultiLanguage.get_string('COCOS_ERROR_CMD_NOT_FOUND_FMT',
-                                                                 ' '.join(sys.argv[1:])),
-                                        CCPluginError.ERROR_CMD_NOT_FOUND)
-            else:
+        if command not in plugins:
+            if len(sys.argv) <= 2:
                 raise CCPluginError(MultiLanguage.get_string('COCOS_ERROR_CMD_NOT_FOUND_FMT', command),
                                     CCPluginError.ERROR_CMD_NOT_FOUND)
 
+                # combine category & name as key
+                # eg. 'project_new'
+            command = f'{sys.argv[1]}_{sys.argv[2]}'
+            argv = sys.argv[3:]
+        if command not in plugins:
+            raise CCPluginError(MultiLanguage.get_string('COCOS_ERROR_CMD_NOT_FOUND_FMT',
+                                                         ' '.join(sys.argv[1:])),
+                                CCPluginError.ERROR_CMD_NOT_FOUND)
+        DataStatistic.stat_event('cocos', 'running_command', command)
+        run_plugin(command, argv, plugins)
     except Exception as e:
-        # FIXME don't know how to handle this. Can't catch cocos2d.CCPluginError
-        # as it's not defined that way in this file, but the plugins raise it
-        # with that name.
-        if e.__class__.__name__ == 'CCPluginError':
-            Logging.error(' '.join(e.args))
-            # import traceback
-            # print '-' * 60
-            # traceback.print_exc(file=sys.stdout)
-            # print '-' * 60
-            err_no = e.get_error_no()
-            sys.exit(err_no)
-        else:
+        if e.__class__.__name__ != 'CCPluginError':
             raise
+        Logging.error(' '.join(e.args))
+        # import traceback
+        # print '-' * 60
+        # traceback.print_exc(file=sys.stdout)
+        # print '-' * 60
+        err_no = e.get_error_no()
+        sys.exit(err_no)
     finally:
         DataStatistic.terminate_stat()

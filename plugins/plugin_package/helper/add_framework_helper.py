@@ -51,10 +51,9 @@ class AddFrameworkHelper(object):
         self._package_version = package_data["version"]
         self._package_path = project["packages_dir"] + os.sep + package_data["name"] + '-' + package_data["version"]
         self._install_json_path = self._package_path + os.sep + "install.json"
-        f = open(self._install_json_path, "rb")
-        self._commands = json.load(f)
-        self._project = project
-        f.close()
+        with open(self._install_json_path, "rb") as f:
+            self._commands = json.load(f)
+            self._project = project
         self._uninstall_json_path = self._package_path + os.sep + "uninstall.json"
         self.get_uninstall_info()
 
@@ -83,21 +82,21 @@ class AddFrameworkHelper(object):
 
     def do_add_project(self, command):
         platform = command["platform"]
-        name = "do_add_project_on_" + platform
+        name = f"do_add_project_on_{platform}"
         cmd = getattr(self, name)
         cmd(command)
 
     def do_add_lib(self, command):
         platforms = command["platform"]
         for platform in platforms:
-            name = "do_add_lib_on_" + platform
+            name = f"do_add_lib_on_{platform}"
             cmd = getattr(self, name)
             cmd(command)
 
     def do_add_header_path(self, command):
         platforms = command["platform"]
         for platform in platforms:
-            name = "do_add_header_path_on_" + platform
+            name = f"do_add_header_path_on_{platform}"
             cmd = getattr(self, name)
             cmd(command)
 
@@ -136,7 +135,7 @@ class AddFrameworkHelper(object):
             if match is None:
                 contents.append(line)
             else:
-                includes = shlex.split(match.group(2))
+                includes = shlex.split(match[2])
                 headers = []
                 for include in includes:
                     include = self.get_ios_mac_path(workdir, include)
@@ -146,17 +145,12 @@ class AddFrameworkHelper(object):
                 headers.append(str_to_add)
                 headers = list(set(headers))
                 start, end = match.span(0)
-                parts = []
-                parts.append(line[:start])
-                parts.append(match.group(1))
-                parts.append(' ')
+                parts = [line[:start], match[1], ' ']
                 for header in headers:
                     if header.find(' ') != -1:
-                        header = '"' + header + '"'
-                    parts.append(header)
-                    parts.append(' ')
-                parts.append(match.group(3))
-                parts.append(line[end:])
+                        header = f'"{header}"'
+                    parts.extend((header, ' '))
+                parts.extend((match[3], line[end:]))
                 contents.append(''.join(parts))
                 tag_found = True
 
@@ -164,17 +158,16 @@ class AddFrameworkHelper(object):
             raise cocos.CCPluginError(MultiLanguage.get_string('PACKAGE_TAG_NOT_FOUND_FMT',
                                       ("header", platform)),
                                       cocos.CCPluginError.ERROR_PARSE_FILE)
-        else:
-            uninst_info = {
-                'file': proj_file_path,
-                'tags': [tag],
-                'type': "header",
-                'platform': "ios_mac",
-                'workdir': workdir,
-                'string':str_to_add
-            }
-            self.append_uninstall_info(uninst_info)
-            self.update_file_content(proj_file_path, contents, True)
+        uninst_info = {
+            'file': proj_file_path,
+            'tags': [tag],
+            'type': "header",
+            'platform': "ios_mac",
+            'workdir': workdir,
+            'string':str_to_add
+        }
+        self.append_uninstall_info(uninst_info)
+        self.update_file_content(proj_file_path, contents, True)
 
     def add_entry_function(self, command):
         declare_str = command["declare"]
@@ -184,7 +177,7 @@ class AddFrameworkHelper(object):
             raise cocos.CCPluginError(MultiLanguage.get_string('PACKAGE_ENTRY_DECLARE_FAILED'),
                                       cocos.CCPluginError.ERROR_PARSE_FILE)
         else:
-            str_to_add = 'extern ' + declare_str + '\n\t' + match.group(2) + '();' + '\n\t'
+            str_to_add = f'extern {declare_str}' + '\n\t' + match[2] + '();' + '\n\t'
 
         file_path, all_text = self.load_appdelegate_file()
         find_tag = '(static int register_all_packages\(\)\s*\{.*)(return 0; //flag for packages manager\s*\})'
@@ -192,13 +185,12 @@ class AddFrameworkHelper(object):
         if match is None:
             raise cocos.CCPluginError(MultiLanguage.get_string('PACKAGE_ERROR_IN_FILE_FMT', file_path),
                                       cocos.CCPluginError.ERROR_PARSE_FILE)
-        else:
-            # add entry funtion
-            split_index = match.end(1)
-            headers = all_text[0:split_index]
-            tails = all_text[split_index:]
-            all_text = headers + str_to_add + tails
-            self.append_uninstall_info({'file':file_path, 'string':str_to_add})
+        # add entry funtion
+        split_index = match.end(1)
+        headers = all_text[:split_index]
+        tails = all_text[split_index:]
+        all_text = headers + str_to_add + tails
+        self.append_uninstall_info({'file':file_path, 'string':str_to_add})
 
         self.update_file_content(file_path, all_text)
 
@@ -251,21 +243,20 @@ class AddFrameworkHelper(object):
             raise cocos.CCPluginError(MultiLanguage.get_string('PACKAGE_TAG_NOT_FOUND_FMT',
                                       ("PBXFileReference",platform)),
                                       cocos.CCPluginError.ERROR_PARSE_FILE)
-        else:
-            # add PBXFileReference of framework
-            split_index = match.end(1)
-            headers = all_text[0:split_index]
-            tails = all_text[split_index:]
-            str_to_add = '\n\t\t' + file_id
-            str_to_add += ' /* ' + framework_name + ' */ = {'
-            str_to_add += 'isa = PBXFileReference; '
-            str_to_add += 'lastKnownFileType = wrapper.framework; '
-            str_to_add += 'name = ' + framework_name + '; '
-            str_to_add += 'path = ' + file_path + '; '
-            str_to_add += 'sourceTree = ' + sourceTree + '; '
-            str_to_add += '};'
-            all_text = headers + str_to_add + tails
-            self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
+        # add PBXFileReference of framework
+        split_index = match.end(1)
+        headers = all_text[:split_index]
+        tails = all_text[split_index:]
+        str_to_add = '\n\t\t' + file_id
+        str_to_add += f' /* {framework_name}' + ' */ = {'
+        str_to_add += 'isa = PBXFileReference; '
+        str_to_add += 'lastKnownFileType = wrapper.framework; '
+        str_to_add += f'name = {framework_name}; '
+        str_to_add += f'path = {file_path}; '
+        str_to_add += f'sourceTree = {sourceTree}; '
+        str_to_add += '};'
+        all_text = headers + str_to_add + tails
+        self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
 
         find_tag = self.__class__.IOS_MAC_PBXBUILD_TAG
         match = re.search(find_tag, all_text, re.DOTALL)
@@ -273,17 +264,16 @@ class AddFrameworkHelper(object):
             raise cocos.CCPluginError(MultiLanguage.get_string('PACKAGE_TAG_NOT_FOUND_FMT',
                                       ("PBXBuildFile", "platform")),
                                       cocos.CCPluginError.ERROR_PARSE_FILE)
-        else:
-            # add framework to PBXBuildFile
-            split_index = match.start(3)
-            headers = all_text[0:split_index]
-            tails = all_text[split_index:]
-            skip_str = '\t\t'
-            str_to_add = skip_str + framework_id + ' /* ' + framework_name + ' in Frameworks */ = {'
-            str_to_add += 'isa = PBXBuildFile; '
-            str_to_add += 'fileRef = ' + file_id + ' /* ' + framework_name + ' */; };\n'
-            all_text = headers + str_to_add + tails
-            self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
+        # add framework to PBXBuildFile
+        split_index = match.start(3)
+        headers = all_text[:split_index]
+        tails = all_text[split_index:]
+        skip_str = '\t\t'
+        str_to_add = skip_str + framework_id + ' /* ' + framework_name + ' in Frameworks */ = {'
+        str_to_add += 'isa = PBXBuildFile; '
+        str_to_add += f'fileRef = {file_id} /* {framework_name}' + ' */; };\n'
+        all_text = headers + str_to_add + tails
+        self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
 
         if platform == 'mac':
             find_tag = self.__class__.MAC_PBXFRAMEWORKBUILDPHASE_TAG
@@ -294,14 +284,15 @@ class AddFrameworkHelper(object):
             raise cocos.CCPluginError(MultiLanguage.get_string('PACKAGE_TAG_NOT_FOUND_FMT',
                                       ("PBXFrameworksBuildPhase", platform)),
                                       cocos.CCPluginError.ERROR_PARSE_FILE)
-        else:
-            # add framework to PBXFrameworksBuildPhase
-            split_index = match.start()
-            headers = all_text[0:split_index]
-            tails = all_text[split_index:]
-            str_to_add = framework_id + ' /* ' + framework_name + ' in Frameworks */,\n\t\t\t\t'
-            all_text = headers + str_to_add + tails
-            self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
+        # add framework to PBXFrameworksBuildPhase
+        split_index = match.start()
+        headers = all_text[:split_index]
+        tails = all_text[split_index:]
+        str_to_add = (
+            f'{framework_id} /* {framework_name}' + ' in Frameworks */,\n\t\t\t\t'
+        )
+        all_text = headers + str_to_add + tails
+        self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
 
         self.update_file_content(proj_pbx_path, all_text)
 
@@ -322,17 +313,16 @@ class AddFrameworkHelper(object):
             raise cocos.CCPluginError(MultiLanguage.get_string('PACKAGE_TAG_NOT_FOUND_FMT',
                                       ("project", "win")),
                                       cocos.CCPluginError.ERROR_PARSE_FILE)
-        else:
-            # add project
-            split_index = match.end(2)
-            headers = all_text[0:split_index]
-            tails = all_text[split_index:]
-            str_to_add = 'Project("{' + project_id + '}") = "' + proj_name + '", '
-            str_to_add += '"' + project_path + '", "{' + build_id + '}"\n'
-            str_to_add += 'EndProject\n'
-            str_to_add = str_to_add.encode('ascii')
-            all_text = headers + str_to_add + tails
-            self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
+        # add project
+        split_index = match.end(2)
+        headers = all_text[:split_index]
+        tails = all_text[split_index:]
+        str_to_add = 'Project("{' + project_id + '}") = "' + proj_name + '", '
+        str_to_add += f'"{project_path}' + '", "{' + build_id + '}"\n'
+        str_to_add += 'EndProject\n'
+        str_to_add = str_to_add.encode('ascii')
+        all_text = headers + str_to_add + tails
+        self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
 
         find_tag = '(GlobalSection\(ProjectConfigurationPlatforms\) = postSolution)(.*)(Release|Win32)(\s*)(EndGlobalSection)'
         match = re.search(find_tag, all_text, re.DOTALL)
@@ -340,18 +330,17 @@ class AddFrameworkHelper(object):
             raise cocos.CCPluginError(MultiLanguage.get_string('PACKAGE_TAG_NOT_FOUND_FMT',
                                       ("config", "win")),
                                       cocos.CCPluginError.ERROR_PARSE_FILE)
-        else:
-            # add build config
-            split_index = match.end(4)
-            headers = all_text[0:split_index]
-            tails = all_text[split_index:]
-            str_to_add = '\t{' + build_id + '}.Debug|Win32.ActiveCfg = Debug|Win32\n'
-            str_to_add += '\t\t{' + build_id + '}.Debug|Win32.Build.0 = Debug|Win32\n'
-            str_to_add += '\t\t{' + build_id + '}.Release|Win32.ActiveCfg = Release|Win32\n'
-            str_to_add += '\t\t{' + build_id + '}.Release|Win32.Build.0 = Release|Win32\n'
-            str_to_add += '\t'
-            all_text = headers + str_to_add + tails
-            self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
+        # add build config
+        split_index = match.end(4)
+        headers = all_text[:split_index]
+        tails = all_text[split_index:]
+        str_to_add = '\t{' + build_id + '}.Debug|Win32.ActiveCfg = Debug|Win32\n'
+        str_to_add += '\t\t{' + build_id + '}.Debug|Win32.Build.0 = Debug|Win32\n'
+        str_to_add += '\t\t{' + build_id + '}.Release|Win32.ActiveCfg = Release|Win32\n'
+        str_to_add += '\t\t{' + build_id + '}.Release|Win32.Build.0 = Release|Win32\n'
+        str_to_add += '\t'
+        all_text = headers + str_to_add + tails
+        self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
 
         self.update_file_content(proj_pbx_path, all_text)
 
@@ -366,17 +355,16 @@ class AddFrameworkHelper(object):
             raise cocos.CCPluginError(MultiLanguage.get_string('PACKAGE_TAG_NOT_FOUND_FMT',
                                       ("ProjectReference", "win")),
                                       cocos.CCPluginError.ERROR_PARSE_FILE)
-        else:
-            # add ProjectReference
-            split_index = match.end(2)
-            headers = all_text[0:split_index]
-            tails = all_text[split_index:]
-            str_to_add = '<ProjectReference Include="' + project_path + '">\n'
-            str_to_add += '      <Project>{' + build_id + '}</Project>\n'
-            str_to_add += '    </ProjectReference>\n    '
-            str_to_add = str_to_add.encode('ascii')
-            all_text = headers + str_to_add + tails
-            self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
+        # add ProjectReference
+        split_index = match.end(2)
+        headers = all_text[:split_index]
+        tails = all_text[split_index:]
+        str_to_add = f'<ProjectReference Include="{project_path}' + '">\n'
+        str_to_add += '      <Project>{' + build_id + '}</Project>\n'
+        str_to_add += '    </ProjectReference>\n    '
+        str_to_add = str_to_add.encode('ascii')
+        all_text = headers + str_to_add + tails
+        self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
 
         self.update_file_content(proj_pbx_path, all_text)
 
@@ -387,51 +375,46 @@ class AddFrameworkHelper(object):
         if build_cfg_file is None:
             raise cocos.CCPluginError(MultiLanguage.get_string('PACKAGE_BUILD_CFG_NOT_FOUND'),
                                       cocos.CCPluginError.ERROR_PATH_NOT_FOUND)
-        f = open(build_cfg_file, "rb")
-        configs = json.load(f)
-        f.close()
+        with open(build_cfg_file, "rb") as f:
+            configs = json.load(f)
         if not isinstance(configs["ndk_module_path"], list):
             raise cocos.CCPluginError(MultiLanguage.get_string('PACKAGE_NDK_MODULE_NOT_FOUND'),
                                       cocos.CCPluginError.ERROR_WRONG_CONFIG)
-        moudle_path = '../../../packages/' + self._package_name + '-' + self._package_version
+        moudle_path = f'../../../packages/{self._package_name}-{self._package_version}'
         configs["ndk_module_path"].append(moudle_path)
         self.append_uninstall_info({'json_file':build_cfg_file, 'items':[{'key':'ndk_module_path','items':[moudle_path]}]})
         self.save_uninstall_info()
-        f = open(build_cfg_file, "w+b")
-        str = json.dump(configs, f)
-        f.close()
-
+        with open(build_cfg_file, "w+b") as f:
+            str = json.dump(configs, f)
         workdir, proj_pbx_path, all_text = self.load_proj_android(True)
 
-        find_tag = '(' + self.__class__.ANDROID_LIB_BEGIN_TAG+ ')(.*)(' + self.__class__.ANDROID_LIB_END_TAG + ')'
+        find_tag = f'({self.__class__.ANDROID_LIB_BEGIN_TAG})(.*)({self.__class__.ANDROID_LIB_END_TAG})'
         match = re.search(find_tag, all_text, re.DOTALL)
         if match is None:
             raise cocos.CCPluginError(MultiLanguage.get_string('PACKAGE_TAG_NOT_FOUND_FMT',
                                       ("lib", "android")),
                                       cocos.CCPluginError.ERROR_PARSE_FILE)
-        else:
-            # add project
-            split_index = match.end(2)
-            headers = all_text[0:split_index]
-            tails = all_text[split_index:]
-            str_to_add = 'LOCAL_STATIC_LIBRARIES += ' + proj_name + '_static\n'
-            all_text = headers + str_to_add + tails
-            self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
+        # add project
+        split_index = match.end(2)
+        headers = all_text[:split_index]
+        tails = all_text[split_index:]
+        str_to_add = f'LOCAL_STATIC_LIBRARIES += {proj_name}' + '_static\n'
+        all_text = headers + str_to_add + tails
+        self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
 
-        find_tag = '(' + self.__class__.ANDROID_LIB_IMPORT_BEGIN_TAG+ ')(.*)(' + self.__class__.ANDROID_LIB_IMPORT_END_TAG + ')'
+        find_tag = f'({self.__class__.ANDROID_LIB_IMPORT_BEGIN_TAG})(.*)({self.__class__.ANDROID_LIB_IMPORT_END_TAG})'
         match = re.search(find_tag, all_text, re.DOTALL)
         if match is None:
             raise cocos.CCPluginError(MultiLanguage.get_string('PACKAGE_TAG_NOT_FOUND_FMT',
                                       ("lib", "android")),
                                       cocos.CCPluginError.ERROR_PARSE_FILE)
-        else:
-            # add import moudle
-            split_index = match.end(2)
-            headers = all_text[0:split_index]
-            tails = all_text[split_index:]
-            str_to_add = '$(call import-module,proj.android)\n'
-            all_text = headers + str_to_add + tails
-            self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
+        # add import moudle
+        split_index = match.end(2)
+        headers = all_text[:split_index]
+        tails = all_text[split_index:]
+        str_to_add = '$(call import-module,proj.android)\n'
+        all_text = headers + str_to_add + tails
+        self.append_uninstall_info({'file':proj_pbx_path, 'string':str_to_add})
 
         self.update_file_content(proj_pbx_path, all_text)
 

@@ -47,8 +47,7 @@ class ZipUnpacker(object):
                     finally:
                         f.close()
                         del data
-                unix_attributes = info.external_attr >> 16
-                if unix_attributes:
+                if unix_attributes := info.external_attr >> 16:
                     os.chmod(target, unix_attributes)
         finally:
             z.close()

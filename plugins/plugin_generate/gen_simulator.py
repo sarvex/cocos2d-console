@@ -39,8 +39,10 @@ class SimulatorCompiler(cocos.CCPlugin):
         return MultiLanguage.get_string('GEN_SIM_BRIEF')
 
     def parse_args(self, argv):
-        parser = ArgumentParser(prog="cocos %s" % self.__class__.plugin_name(),
-                                description=self.__class__.brief_description())
+        parser = ArgumentParser(
+            prog=f"cocos {self.__class__.plugin_name()}",
+            description=self.__class__.brief_description(),
+        )
         parser.add_argument('-c', '--clean', dest='do_clean', action='store_true',
                             help=MultiLanguage.get_string('GEN_SIM_ARG_CLEAN'))
         parser.add_argument('-e', dest='engine_path', help=MultiLanguage.get_string('GEN_SIM_ARG_ENGINE'))
@@ -98,30 +100,17 @@ class SimulatorCompiler(cocos.CCPlugin):
 
         # get arguments
         self.is_clean_before_build = args.do_clean
-        if args.compile_mode is None:
-            self.mode = 'debug'
-        else:
-            self.mode = args.compile_mode
-
+        self.mode = 'debug' if args.compile_mode is None else args.compile_mode
         if args.platform is None:
             self.build_ios = True
             self.build_mac = True
             self.build_win = True
             self.build_android = True
         else:
-            self.build_ios = False
-            self.build_mac = False
-            self.build_win = False
-            self.build_android = False
-            if 'win32' in args.platform:
-                self.build_win = True
-            if 'ios' in args.platform:
-                self.build_ios = True
-            if 'mac' in args.platform:
-                self.build_mac = True
-            if 'android' in args.platform:
-                self.build_android = True
-
+            self.build_win = 'win32' in args.platform
+            self.build_ios = 'ios' in args.platform
+            self.build_mac = 'mac' in args.platform
+            self.build_android = 'android' in args.platform
         self.build_log = ""
         self.vs_version = args.vs_version
         self._verbose = True
@@ -160,22 +149,19 @@ class SimulatorCompiler(cocos.CCPlugin):
             self.write_content_to_file(content,file_path)
 
     def get_keywords(self):
-        osx_keyword = {
-            "CC_TARGET_OS_IPHONE,":"CC_TARGET_OS_IPHONE,\n\"COCOS2D_DEBUG=1\",",
-            "CC_TARGET_OS_MAC,":"CC_TARGET_OS_MAC,\n\"COCOS2D_DEBUG=1\",",
-            "COCOS2D_DEBUG=0":"COCOS2D_DEBUG=1",
-        }
-
-        win_keyword = {
-            "_WINDOWS":"_WINDOWS;COCOS2D_DEBUG=1",
-        }
-
         if cocos.os_is_mac():
-            return osx_keyword
-        if cocos.os_is_win32():
-            return win_keyword
-
-        return {}
+            return {
+                "CC_TARGET_OS_IPHONE,": "CC_TARGET_OS_IPHONE,\n\"COCOS2D_DEBUG=1\",",
+                "CC_TARGET_OS_MAC,": "CC_TARGET_OS_MAC,\n\"COCOS2D_DEBUG=1\",",
+                "COCOS2D_DEBUG=0": "COCOS2D_DEBUG=1",
+            }
+        return (
+            {
+                "_WINDOWS": "_WINDOWS;COCOS2D_DEBUG=1",
+            }
+            if cocos.os_is_win32()
+            else {}
+        )
 
     def convert_path_to_win32(self,path):
         return path.replace("/","\\")
@@ -199,15 +185,13 @@ class SimulatorCompiler(cocos.CCPlugin):
             project_references = []
             for l in lines:
                 if IOS_MAC_PROJECT_REFERENCES_TAG in l:
-                    ret = re.search(IOS_MAC_PROJECT_NAME_RE, l)
-                    if ret: project_references.append(ret.group(0))
-
+                    if ret := re.search(IOS_MAC_PROJECT_NAME_RE, l):
+                        project_references.append(ret[0])
             for references in project_references:
                 re_str = IOS_MAC_PROJECT_PATH_RE % references
-                ret = re.search(re_str, contents_str)
-                if ret:
-                    match_str = ret.group(0)
-                    match_str = match_str.replace("name = %s; path = " % references, "")
+                if ret := re.search(re_str, contents_str):
+                    match_str = ret[0]
+                    match_str = match_str.replace(f"name = {references}; path = ", "")
                     match_str = match_str.replace('"', "")
                     file_list.append(os.path.join(simulator_mac_project_path, match_str, IOS_MAC_PROJECT_SUFFIX))
 
@@ -220,8 +204,7 @@ class SimulatorCompiler(cocos.CCPlugin):
             lines = content_str.split('\n')
             for l in lines:
                 if l.startswith(WIN32_PROJECT_TAG):
-                    ret = re.compile('"(.*?)"').findall(l.split(',')[1])
-                    if ret:
+                    if ret := re.compile('"(.*?)"').findall(l.split(',')[1]):
                         path = self.convert_path_to_win32(os.path.join(simulator_win32_project_path, ret[0]))
                         file_list.append(path)
 
@@ -231,16 +214,21 @@ class SimulatorCompiler(cocos.CCPlugin):
         if self.is_clean_before_build:
             project_directory = os.path.join(self.simulator_abs_path, "frameworks/runtime-src/proj.ios_mac/")
 
-            command = "xcodebuild -alltargets -configuration %s clean" % ("Debug" if self.mode == 'debug' else 'Release')
+            command = f"""xcodebuild -alltargets -configuration {"Debug" if self.mode == 'debug' else 'Release'} clean"""
             self._run_cmd(command, project_directory)
 
-        command = ' '.join([
-            "mkdir -p %s" % (os.path.join(self.simulator_abs_path, "src")),
-            " && %s compile -p mac -m %s -o \"%s\" --no-res --compile-script 0" % (self.cocos_bin
-                , "debug" if self.mode == 'debug' else "release"
-                , os.path.join(self.simulator_output_dir,"mac")),
-            " && strip %s" % (os.path.join(self.simulator_output_dir,"mac/Simulator.app/Contents/MacOS/Simulator")),
-            ])
+        command = ' '.join(
+            [
+                f'mkdir -p {os.path.join(self.simulator_abs_path, "src")}',
+                " && %s compile -p mac -m %s -o \"%s\" --no-res --compile-script 0"
+                % (
+                    self.cocos_bin,
+                    "debug" if self.mode == 'debug' else "release",
+                    os.path.join(self.simulator_output_dir, "mac"),
+                ),
+                f' && strip {os.path.join(self.simulator_output_dir, "mac/Simulator.app/Contents/MacOS/Simulator")}',
+            ]
+        )
 
         self._run_cmd(command, self.simulator_abs_path)
         self.build_log += MultiLanguage.get_string('GEN_SIM_BUILD_SUCCESS_FMT', ('Mac', self.mode))
@@ -249,16 +237,21 @@ class SimulatorCompiler(cocos.CCPlugin):
         if self.is_clean_before_build:
             project_directory = os.path.join(self.simulator_abs_path, "frameworks/runtime-src/proj.ios_mac/")
 
-            command = "xcodebuild -alltargets -configuration %s clean" % ("Debug" if self.mode =='debug' else 'Release')
+            command = f"""xcodebuild -alltargets -configuration {"Debug" if self.mode == 'debug' else 'Release'} clean"""
             self._run_cmd(command, project_directory)
 
-        command = ' '.join([
-            " %s compile -p ios -m %s -o \"%s\" --no-res --compile-script 0" % (self.cocos_bin
-                , "debug" if self.mode == 'debug' else "release"
-                , os.path.join(self.simulator_output_dir,"ios")),
-            " && strip %s" % (os.path.join(self.simulator_output_dir,"ios","Simulator.app/Simulator")),
-            " && rm -fr %s" % (os.path.join(self.simulator_output_dir,"ios","Simulator.app.dSYM")),
-            ])
+        command = ' '.join(
+            [
+                " %s compile -p ios -m %s -o \"%s\" --no-res --compile-script 0"
+                % (
+                    self.cocos_bin,
+                    "debug" if self.mode == 'debug' else "release",
+                    os.path.join(self.simulator_output_dir, "ios"),
+                ),
+                f' && strip {os.path.join(self.simulator_output_dir, "ios", "Simulator.app/Simulator")}',
+                f' && rm -fr {os.path.join(self.simulator_output_dir, "ios", "Simulator.app.dSYM")}',
+            ]
+        )
 
         self._run_cmd(command, self.simulator_abs_path)
         self.build_log += MultiLanguage.get_string('GEN_SIM_BUILD_SUCCESS_FMT', ('iOS', self.mode))
@@ -270,39 +263,43 @@ class SimulatorCompiler(cocos.CCPlugin):
             os.makedirs(win32_output_dir)
 
         # get the vs version should be used
-        if self.vs_version is None:
-            ver_param = ''
-        else:
-            ver_param = '--vs %d' % self.vs_version
-
+        ver_param = '' if self.vs_version is None else '--vs %d' % self.vs_version
         if self.mode == 'debug':
             win32_src_dir = os.path.join(self.simulator_abs_path,"runtime/win32/")
             win32_src_dir = self.convert_path_to_win32(win32_src_dir)
             win32_dll_dir = self.convert_path_to_win32(os.path.join(os.path.dirname(self.cur_dir),"dll/"))
-            command = ' '.join([
-                " %s compile -p win32 -m debug --no-res --compile-script 0 %s" % (self.cocos_bin, ver_param),
-                " && xcopy /Y %s*.dll %s" % (win32_src_dir, win32_output_dir),
-                " && xcopy /Y %s*.exe %s" % (win32_src_dir, win32_output_dir),
-                " && if exist %s*.dll xcopy /Y %s*.dll %s" % (win32_dll_dir,win32_dll_dir,win32_output_dir)
-            ])
+            command = ' '.join(
+                [
+                    f" {self.cocos_bin} compile -p win32 -m debug --no-res --compile-script 0 {ver_param}",
+                    f" && xcopy /Y {win32_src_dir}*.dll {win32_output_dir}",
+                    f" && xcopy /Y {win32_src_dir}*.exe {win32_output_dir}",
+                    f" && if exist {win32_dll_dir}*.dll xcopy /Y {win32_dll_dir}*.dll {win32_output_dir}",
+                ]
+            )
         else:
-            command = " %s compile -p win32 -m release --no-res --compile-script 0 -o %s %s" % (self.cocos_bin,win32_output_dir,ver_param)
+            command = f" {self.cocos_bin} compile -p win32 -m release --no-res --compile-script 0 -o {win32_output_dir} {ver_param}"
 
         self._run_cmd(command, self.simulator_abs_path)
         self.build_log += MultiLanguage.get_string('GEN_SIM_BUILD_SUCCESS_FMT', ('Win32', self.mode))
 
     def compile_for_android(self):
-        rename_command = ' '.join([
-                "mv %s %s" % (os.path.join(self.simulator_output_dir,"android","simulator-debug.apk"),
-                              os.path.join(self.simulator_output_dir,"android","Simulator.apk"))
-            ])
+        rename_command = ' '.join(
+            [
+                f'mv {os.path.join(self.simulator_output_dir, "android", "simulator-debug.apk")} {os.path.join(self.simulator_output_dir, "android", "Simulator.apk")}'
+            ]
+        )
 
-        command = ' '.join([
-            " %s compile -p android --mode %s -o \"%s\" --no-res --compile-script 0" % (self.cocos_bin
-                 , "debug" if self.mode == 'debug' else "release"
-                 , os.path.join(self.simulator_output_dir,"android")),
-            "&& %s" % (rename_command),
-            ])
+        command = ' '.join(
+            [
+                " %s compile -p android --mode %s -o \"%s\" --no-res --compile-script 0"
+                % (
+                    self.cocos_bin,
+                    "debug" if self.mode == 'debug' else "release",
+                    os.path.join(self.simulator_output_dir, "android"),
+                ),
+                f"&& {rename_command}",
+            ]
+        )
 
         self._run_cmd(command, self.simulator_abs_path)
         self.build_log += MultiLanguage.get_string('GEN_SIM_BUILD_SUCCESS_FMT', ('Android', self.mode))
@@ -314,9 +311,8 @@ class SimulatorCompiler(cocos.CCPlugin):
             if self.build_ios:
                 self.compile_for_ios()
 
-        if cocos.os_is_win32():
-            if self.build_win:
-                self.compile_for_win32()
+        if cocos.os_is_win32() and self.build_win:
+            self.compile_for_win32()
 
         if self.build_android:
             self.compile_for_android()
@@ -336,14 +332,14 @@ class SimulatorCompiler(cocos.CCPlugin):
 
             match = re.compile('<key>CFBundleVersion</key>(\s)*<string>(.*?)</string>').findall(info_plist_content)
             if len(match):
-                build_date_tag = "<string>%s</string>" % match[0][1]
-                keyword_map = { build_date_tag : "<string>%s</string>" % build_date }
+                build_date_tag = f"<string>{match[0][1]}</string>"
+                keyword_map = {build_date_tag: f"<string>{build_date}</string>"}
                 self.replace_keyword_with_file(info_plist_path, keyword_map)
 
             match = re.compile('<key>CFBundleShortVersionString</key>(\s)*<string>(.*?)</string>').findall(info_plist_content)
             if len(match):
-                build_date_tag = "<string>%s</string>" % match[0][1]
-                keyword_map = { build_date_tag : "<string>%s</string>" % self.engine_version }
+                build_date_tag = f"<string>{match[0][1]}</string>"
+                keyword_map = {build_date_tag: f"<string>{self.engine_version}</string>"}
                 self.replace_keyword_with_file(info_plist_path, keyword_map)
 
         if cocos.os_is_win32() and self.build_win:
@@ -353,7 +349,7 @@ class SimulatorCompiler(cocos.CCPlugin):
             match = re.compile('"Version[^\(]*\(.*\)"').findall(game_rc_content)
             if len(match):
                 build_info_str = match[0]
-                target_str = '"Version %s (%s)"' % (self.engine_version, build_date)
+                target_str = f'"Version {self.engine_version} ({build_date})"'
                 keyword_map = { build_info_str : target_str}
                 self.replace_keyword_with_file(game_rc_path,keyword_map)
 
@@ -363,13 +359,13 @@ class SimulatorCompiler(cocos.CCPlugin):
             if not os.path.isfile(full_path):
                 continue
 
-            backup_file_path = '%s.bak' % full_path
+            backup_file_path = f'{full_path}.bak'
             shutil.copyfile(full_path, backup_file_path)
 
     def rollback_files(self, files):
         for f in files:
             full_path = os.path.abspath(f)
-            backup_file_path = '%s.bak' % full_path
+            backup_file_path = f'{full_path}.bak'
             if not os.path.isfile(backup_file_path):
                 continue
 
@@ -379,7 +375,6 @@ class SimulatorCompiler(cocos.CCPlugin):
             except:
                 Logging.warning(MultiLanguage.get_string('GEN_SIM_ROLL_BACK_FAIL_FMT',
                                                          (full_path, backup_file_path, full_path)))
-                pass
 
     def run(self, argv, dependencies):
         self.parse_args(argv)

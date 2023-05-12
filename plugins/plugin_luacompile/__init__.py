@@ -32,13 +32,13 @@ import struct
 _DELTA = 0x9E3779B9  
 
 def _long2str(v, w):  
-    n = (len(v) - 1) << 2  
+    n = (len(v) - 1) << 2
     if w:  
         m = v[-1]  
         if (m < n - 3) or (m > n): return ''  
-        n = m  
-    s = struct.pack('<%iL' % len(v), *v)  
-    return s[0:n] if w else s  
+        n = m
+    s = struct.pack('<%iL' % len(v), *v)
+    return s[:n] if w else s  
   
 def _str2long(s, w):  
     n = len(s)  
@@ -161,8 +161,8 @@ class CCPluginLuaCompile(cocos.CCPlugin):
         """
         # create folder for generated file
         luac_filepath = ""
-        # Unknow to remove 'c' 
-        relative_path = self.get_relative_path(luafile)+"c"
+        # Unknow to remove 'c'
+        relative_path = f"{self.get_relative_path(luafile)}c"
         luac_filepath = os.path.join(self._dst_dir, relative_path)
 
         dst_rootpath = os.path.split(luac_filepath)[0]
@@ -190,7 +190,7 @@ class CCPluginLuaCompile(cocos.CCPlugin):
         elif cocos.os_is_linux():
             ret = os.path.join(self._workingdir, "bin", bit_prefix, "luajit-linux")
 
-        print("luajit bin path: " + ret)
+        print(f"luajit bin path: {ret}")
         return ret
 
     def compile_lua(self, lua_file, output_file):
@@ -239,12 +239,11 @@ class CCPluginLuaCompile(cocos.CCPlugin):
                     self.compile_lua(lua_file, dst_lua_file)                   
 
                 if self._isEncrypt == True:
-                    bytesFile = open(dst_lua_file, "rb+")
-                    encryBytes = encrypt(bytesFile.read(), self._encryptkey)
-                    encryBytes = self._encryptsign + encryBytes
-                    bytesFile.seek(0)
-                    bytesFile.write(encryBytes)
-                    bytesFile.close()
+                    with open(dst_lua_file, "rb+") as bytesFile:
+                        encryBytes = encrypt(bytesFile.read(), self._encryptkey)
+                        encryBytes = self._encryptsign + encryBytes
+                        bytesFile.seek(0)
+                        bytesFile.write(encryBytes)
                     index = index + 1
 
 
@@ -281,8 +280,10 @@ class CCPluginLuaCompile(cocos.CCPlugin):
 
         from argparse import ArgumentParser
 
-        parser = ArgumentParser(prog="cocos %s" % self.__class__.plugin_name(),
-                                description=self.__class__.brief_description())
+        parser = ArgumentParser(
+            prog=f"cocos {self.__class__.plugin_name()}",
+            description=self.__class__.brief_description(),
+        )
 
         parser.add_argument("-v", "--verbose",
                           action="store_true",
@@ -310,10 +311,10 @@ class CCPluginLuaCompile(cocos.CCPlugin):
 
         options = parser.parse_args(argv)
 
-        if options.src_dir_arr == None:
+        if options.src_dir_arr is None:
             raise cocos.CCPluginError(MultiLanguage.get_string('LUACOMPILE_ERROR_SRC_NOT_SPECIFIED'),
                                       cocos.CCPluginError.ERROR_WRONG_ARGS)
-        elif options.dst_dir == None:
+        elif options.dst_dir is None:
             raise cocos.CCPluginError(MultiLanguage.get_string('LUACOMPILE_ERROR_DST_NOT_SPECIFIED'),
                                       cocos.CCPluginError.ERROR_WRONG_ARGS)
         else:

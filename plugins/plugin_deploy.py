@@ -45,10 +45,7 @@ class CCPluginDeploy(cocos.CCPlugin):
         if args.mode != 'release':
             args.mode = 'debug'
 
-        self._mode = 'debug'
-        if 'release' == args.mode:
-            self._mode = args.mode
-
+        self._mode = args.mode if args.mode == 'release' else 'debug'
         self._no_uninstall = args.no_uninstall
 
     def _is_debug_mode(self):
@@ -120,8 +117,7 @@ class CCPluginDeploy(cocos.CCPlugin):
                     break
 
                 i += 1
-                match = re.match(pattern, version)
-                if match:
+                if match := re.match(pattern, version):
                     major = int(match.group(1))
                     minor = int(match.group(2))
                     if major > 7:
@@ -129,11 +125,15 @@ class CCPluginDeploy(cocos.CCPlugin):
                             key = _winreg.OpenKey(wp, "%s\Install Path" % version)
                             value, type = _winreg.QueryValueEx(key, "Install Path")
                             tool_path = os.path.join(value, "Tools", "XAP Deployment", "XapDeployCmd.exe")
-                            if os.path.isfile(tool_path):
-                                if (find_ret is None) or (major > find_major) or (major == find_major and minor > find_minor):
-                                    find_ret = tool_path
-                                    find_major = major
-                                    find_minor = minor
+                            if (
+                                os.path.isfile(tool_path)
+                                and (find_ret is None)
+                                or (major > find_major)
+                                or (major == find_major and minor > find_minor)
+                            ):
+                                find_ret = tool_path
+                                find_major = major
+                                find_minor = minor
                         except:
                             pass
 
@@ -160,11 +160,11 @@ class CCPluginDeploy(cocos.CCPlugin):
         sdk_root = cocos.check_environment_variable('ANDROID_SDK_ROOT')
         adb_path = cocos.CMDRunner.convert_path_to_cmd(os.path.join(sdk_root, 'platform-tools', 'adb'))
 
-        if not self._no_uninstall:
-            # do uninstall only when that app is installed
-            if cocos.app_is_installed(adb_path, self.package):
-                adb_uninstall = "%s uninstall %s" % (adb_path, self.package)
-                self._run_cmd(adb_uninstall)
+        if not self._no_uninstall and cocos.app_is_installed(
+            adb_path, self.package
+        ):
+            adb_uninstall = f"{adb_path} uninstall {self.package}"
+            self._run_cmd(adb_uninstall)
 
         adb_install = "%s install -r \"%s\"" % (adb_path, apk_path)
         self._run_cmd(adb_install)
@@ -184,7 +184,7 @@ class CCPluginDeploy(cocos.CCPlugin):
 
         if not self._no_uninstall:
             try:
-                uninstall_cmd = "%s uninstall -p %s" % (tizen_cmd_path, self.tizen_packageid)
+                uninstall_cmd = f"{tizen_cmd_path} uninstall -p {self.tizen_packageid}"
                 self._run_cmd(uninstall_cmd)
             except Exception:
                 pass

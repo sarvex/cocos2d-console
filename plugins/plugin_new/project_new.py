@@ -84,9 +84,9 @@ class CCPluginNew(cocos.CCPlugin):
                 self._tpdir = dic[template_key]["path"]
             else:
                 raise cocos.CCPluginError(
-                    "Template name '%s' not found. Available templates: %s" %
-                    (template_key, dic.keys()),
-                    cocos.CCPluginError.ERROR_PATH_NOT_FOUND)
+                    f"Template name '{template_key}' not found. Available templates: {dic.keys()}",
+                    cocos.CCPluginError.ERROR_PATH_NOT_FOUND,
+                )
         else:
             # Old way
             self._templates = Templates(args.language, self._templates_paths, args.template)
@@ -101,8 +101,10 @@ class CCPluginNew(cocos.CCPlugin):
         from argparse import ArgumentParser
         # set the parser to parse input params
         # the correspond variable name of "-x, --xxx" is parser.xxx
-        parser = ArgumentParser(prog="cocos %s" % self.__class__.plugin_name(),
-                                description=self.__class__.brief_description())
+        parser = ArgumentParser(
+            prog=f"cocos {self.__class__.plugin_name()}",
+            description=self.__class__.brief_description(),
+        )
 
         parser.add_argument(
             "name", metavar="PROJECT_NAME", nargs='?', help=MultiLanguage.get_string('NEW_ARG_NAME'))
@@ -149,7 +151,7 @@ class CCPluginNew(cocos.CCPlugin):
             args.name = CCPluginNew.DEFAULT_PROJ_NAME[args.language]
 
         if not args.package:
-            args.package = "org.cocos2dx.%s" % args.name
+            args.package = f"org.cocos2dx.{args.name}"
 
         if not args.ios_bundleid:
             args.ios_bundleid = args.package
@@ -176,10 +178,8 @@ class CCPluginNew(cocos.CCPlugin):
             x_ver_file = os.path.join(self._cocosroot, 'cocos/cocos2d.cpp')
             js_ver_file = os.path.join(self._cocosroot, 'frameworks/js-bindings/bindings/manual/ScriptingCore.h')
             if os.path.isfile(framework_ver_file):
-                # the engine is Cocos Framework
-                f = open(framework_ver_file)
-                ver_str = f.read()
-                f.close()
+                with open(framework_ver_file) as f:
+                    ver_str = f.read()
                 engine_type = 'cocosframework'
             else:
                 ver_file = None
@@ -196,15 +196,12 @@ class CCPluginNew(cocos.CCPlugin):
                     engine_type = 'cocos2d-js'
 
                 if ver_file is not None:
-                    f = open(ver_file)
-                    import re
-                    for line in f.readlines():
-                        match = re.match(pattern, line)
-                        if match:
-                            ver_str = match.group(1)
-                            break
-                    f.close()
-
+                    with open(ver_file) as f:
+                        import re
+                        for line in f:
+                            if match := re.match(pattern, line):
+                                ver_str = match[1]
+                                break
             if ver_str is not None:
                 # stat the engine version info
                 cocos.DataStatistic.stat_event('new_engine_ver', ver_str, engine_type)
@@ -225,10 +222,8 @@ class CCPluginNew(cocos.CCPlugin):
         data = None
         cfg_path = os.path.join(self._projdir, cocos_project.Project.CONFIG)
         if os.path.isfile(cfg_path):
-            f = open(cfg_path)
-            data = json.load(f)
-            f.close()
-
+            with open(cfg_path) as f:
+                data = json.load(f)
         if data is None:
             data = {}
 
@@ -264,7 +259,7 @@ class CCPluginNew(cocos.CCPlugin):
     # main entry point
     def run(self, argv, dependencies):
         self.parse_args(argv)
-        action_str = 'new_%s' % (self._lang)
+        action_str = f'new_{self._lang}'
         cocos.DataStatistic.stat_event('new', action_str, self._tpname)
         self._create_from_cmd()
         self._stat_engine_version()
@@ -280,17 +275,15 @@ def replace_string(filepath, src_string, dst_string):
         raise TypeError
 
     content = ""
-    f1 = open(filepath, "rb")
-    for line in f1:
-        strline = line.decode('utf8')
-        if src_string in strline:
-            content += strline.replace(src_string, dst_string)
-        else:
-            content += strline
-    f1.close()
-    f2 = open(filepath, "wb")
-    f2.write(content.encode('utf8'))
-    f2.close()
+    with open(filepath, "rb") as f1:
+        for line in f1:
+            strline = line.decode('utf8')
+            if src_string in strline:
+                content += strline.replace(src_string, dst_string)
+            else:
+                content += strline
+    with open(filepath, "wb") as f2:
+        f2.write(content.encode('utf8'))
 # end of replace_string
 
 
@@ -357,13 +350,13 @@ class Templates(object):
                 if match is None:
                     continue
 
-                template_name = match.group(1)
-                if template_name in self._template_folders.keys():
+                template_name = match[1]
+                if template_name in self._template_folders:
                     continue
 
                 self._template_folders[template_name] = os.path.join(templates_dir, name)
 
-        if len(self._template_folders) == 0:
+        if not self._template_folders:
             cur_engine = "cocos2d-x" if self._lang == "js" else "cocos2d-js"
             need_engine = "cocos2d-js" if self._lang == "js" else "cocos2d-x"
             engine_tip = MultiLanguage.get_string('NEW_ERROR_ENGINE_TIP_FMT', need_engine)
@@ -374,9 +367,7 @@ class Templates(object):
         return self._current is None
 
     def template_path(self):
-        if self._current is None:
-            return None
-        return self._template_folders[self._current]
+        return None if self._current is None else self._template_folders[self._current]
 
     def select_one(self):
         cocos.Logging.warning(MultiLanguage.get_string('NEW_SELECT_TEMPLATE_TIP1'))
@@ -449,8 +440,7 @@ class TPCreator(object):
         default_cmds = self.tp_default_step
         exclude_files = []
         if "exclude_from_template" in default_cmds:
-            exclude_files = exclude_files + \
-                default_cmds['exclude_from_template']
+            exclude_files += default_cmds['exclude_from_template']
             default_cmds.pop('exclude_from_template')
 
         # should ignore teh xx-template-xx.json
@@ -499,24 +489,20 @@ class TPCreator(object):
             message = MultiLanguage.get_string('NEW_WARNING_FILE_NOT_FOUND_FMT', moudle_cfg)
             raise cocos.CCPluginError(message, cocos.CCPluginError.ERROR_PATH_NOT_FOUND)
 
-        f = open(moudle_cfg)
-        data = json.load(f, 'utf8')
-        f.close()
+        with open(moudle_cfg) as f:
+            data = json.load(f, 'utf8')
         modules = data['module']
 
         # must copy moduleConfig.json & CCBoot.js
         file_list = [moduleConfig, data['bootFile']]
         for k, v in modules.iteritems():
             module = modules[k]
-            for f in module:
-                if f[-2:] == 'js':
-                    file_list.append(f)
-
+            file_list.extend(f for f in module if f[-2:] == 'js')
         # begin copy engine
         cocos.Logging.info(MultiLanguage.get_string('NEW_INFO_STEP_COPY_H5'))
-        for index in range(len(file_list)):
-            srcfile = os.path.join(src, file_list[index])
-            dstfile = os.path.join(dst, file_list[index])
+        for file in file_list:
+            srcfile = os.path.join(src, file)
+            dstfile = os.path.join(dst, file)
 
             srcfile = cocos.add_path_prefix(srcfile)
             dstfile = cocos.add_path_prefix(dstfile)
@@ -553,10 +539,8 @@ class TPCreator(object):
             message = MultiLanguage.get_string('NEW_WARNING_FILE_NOT_FOUND_FMT', cocosx_files_json)
             raise cocos.CCPluginError(message, cocos.CCPluginError.ERROR_PATH_NOT_FOUND)
 
-        f = open(cocosx_files_json)
-        data = json.load(f)
-        f.close()
-
+        with open(cocosx_files_json) as f:
+            data = json.load(f)
         fileList = data['common']
         if self.lang == 'lua':
             fileList = fileList + data['lua']
@@ -629,7 +613,7 @@ class TPCreator(object):
             dst_file_path = os.path.join(dst_project_dir, dst)
             if os.path.exists(src_file_path):
                 if dst_project_name.lower() == src_project_name.lower():
-                    temp_file_path = "%s-temp" % src_file_path
+                    temp_file_path = f"{src_file_path}-temp"
                     os.rename(src_file_path, temp_file_path)
                     os.rename(temp_file_path, dst_file_path)
                 else:
@@ -761,15 +745,12 @@ class TPCreator(object):
             pattern = modify_info["pattern"]
             replace_str = modify_info["replace_string"]
 
-            f = open(modify_file)
-            lines = f.readlines()
-            f.close()
-
+            with open(modify_file) as f:
+                lines = f.readlines()
             new_lines = []
             for line in lines:
                 new_line = re.sub(pattern, replace_str, line)
                 new_lines.append(new_line)
 
-            f = open(modify_file, "w")
-            f.writelines(new_lines)
-            f.close()
+            with open(modify_file, "w") as f:
+                f.writelines(new_lines)

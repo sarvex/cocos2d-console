@@ -17,12 +17,11 @@ import json
 import locale
 
 def get_current_path():
-    if getattr(sys, 'frozen', None):
-        ret = os.path.realpath(os.path.dirname(sys.executable))
-    else:
-        ret = os.path.realpath(os.path.dirname(__file__))
-
-    return ret
+    return (
+        os.path.realpath(os.path.dirname(sys.executable))
+        if getattr(sys, 'frozen', None)
+        else os.path.realpath(os.path.dirname(__file__))
+    )
 
 class MultiLanguage(object):
     CONFIG_FILE_NAME = 'strings.json'
@@ -34,10 +33,11 @@ class MultiLanguage(object):
         info = cls.get_instance().cfg_info
         ret = []
         if info is not None:
-            for key in info.keys():
-                if isinstance(key, unicode):
-                    ret.append(key.encode('utf-8'))
-
+            ret.extend(
+                key.encode('utf-8')
+                for key in info.keys()
+                if isinstance(key, unicode)
+            )
         return ret
 
     @classmethod
@@ -51,22 +51,19 @@ class MultiLanguage(object):
     def get_string(cls, key, fmt_value=None):
         fmt = cls.get_instance().get_current_string(key)
         if fmt_value is None:
-            ret = fmt
+            return fmt
+        elif isinstance(fmt_value, tuple):
+            dst_values = []
+            for value in fmt_value:
+                if isinstance(value, unicode):
+                    dst_values.append(value.encode(cls.get_instance().get_encoding()))
+                else:
+                    dst_values.append(value)
+            return fmt % tuple(dst_values)
+        elif isinstance(fmt_value, unicode):
+            return fmt % fmt_value.encode(cls.get_instance().get_encoding())
         else:
-            if isinstance(fmt_value, tuple):
-                dst_values = []
-                for value in fmt_value:
-                    if isinstance(value, unicode):
-                        dst_values.append(value.encode(cls.get_instance().get_encoding()))
-                    else:
-                        dst_values.append(value)
-                ret = fmt % tuple(dst_values)
-            elif isinstance(fmt_value, unicode):
-                ret = fmt % fmt_value.encode(cls.get_instance().get_encoding())
-            else:
-                ret = fmt % fmt_value
-
-        return ret
+            return fmt % fmt_value
 
 
     @classmethod
@@ -81,8 +78,6 @@ class MultiLanguage(object):
         except:
             sys_lang = None
             self.encoding = None
-            pass
-
         if self.encoding is None:
             self.encoding = 'utf-8'
 
@@ -93,10 +88,8 @@ class MultiLanguage(object):
 
         # get the strings info
         if os.path.isfile(cfg_file_path):
-            f = open(cfg_file_path)
-            self.cfg_info = json.load(f, encoding='utf-8')
-            f.close()
-
+            with open(cfg_file_path) as f:
+                self.cfg_info = json.load(f, encoding='utf-8')
             if self.cfg_info.has_key(cur_lang_key):
                 self.cur_lang_strings = self.cfg_info[cur_lang_key]
             else:
@@ -120,22 +113,17 @@ class MultiLanguage(object):
             region = sys_lang_info[1]
             region = region.lower()
 
-        if lang == 'zh':
-            if (region is None) or (region == 'cn'):
-                ret = lang
-            else:
-                ret = 'zh_tw'
-        else:
-            ret = lang
-
-        return ret
+        return (
+            lang
+            if lang == 'zh'
+            and (region is None)
+            or (region == 'cn')
+            or lang != 'zh'
+            else 'zh_tw'
+        )
 
     def has_key(self, key, strings_info):
-        ret = False
-        if strings_info is not None and strings_info.has_key(key):
-            ret = True
-
-        return ret
+        return bool(strings_info is not None and strings_info.has_key(key))
 
     def set_current_language(self, lang):
         if (self.cfg_info is not None) and (self.cfg_info.has_key(lang)):

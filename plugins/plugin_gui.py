@@ -29,4 +29,6 @@ class CCPluginGUI(cocos.CCPlugin):
         return "shows the GUI"
 
     def run(self, argv, dependencies):
-        subprocess.Popen(['open', '-a', self.get_console_path() + '/' + 'Cocos2d-Console-GUI.app'])
+        subprocess.Popen(
+            ['open', '-a', f'{self.get_console_path()}/Cocos2d-Console-GUI.app']
+        )

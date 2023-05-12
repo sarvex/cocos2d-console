@@ -64,12 +64,12 @@ class ThreadedTask(threading.Thread):
         """
         #delete exist project.
         if os.path.exists(os.path.join(self.projectPath, self.projectName)):
-            print ("###begin remove:  " + self.projectName)
+            print(f"###begin remove:  {self.projectName}")
             try:
                 shutil.rmtree(os.path.join(self.projectPath, self.projectName))
-                print ("###remove finish:  " + self.projectName)
+                print(f"###remove finish:  {self.projectName}")
             except:
-                print ("###remove folder failure %s" %self.projectName)
+                print(f"###remove folder failure {self.projectName}")
                 putMsg = "end@%d@%d@%s" %(100, 100, "create failure")
                 self.queue.put(putMsg)
         putMsg = "begin@%d@%d@%s" %(0, 100, "begin create")
@@ -202,10 +202,6 @@ class TkCocosDialog(Frame):
         #begin
         if msglist[0] == "begin":
             self.progress['state'] = NORMAL
-        #doing
-        elif msglist[0] == "doing":
-            pass
-
         self.progress.set(int(int(msglist[1])*100/int(msglist[2])))
         #end
         if msglist[0] == "end":
@@ -252,9 +248,10 @@ class TkCocosDialog(Frame):
             return
 
         # if project has already exist,....
-        if os.path.exists(os.path.join(projectPath, projectName)):
-            if not askyesno("warning", "%s had exist,do you want to recreate!" %projectName ):
-                return
+        if os.path.exists(os.path.join(projectPath, projectName)) and not askyesno(
+            "warning", f"{projectName} had exist,do you want to recreate!"
+        ):
+            return
 
         #create a new thread to deal with create new project.
         self.btnCreate['state'] = DISABLED
@@ -265,8 +262,7 @@ class TkCocosDialog(Frame):
     def pathCallback(self):
         """Paht button event.
         """
-        filepath = askdirectory()
-        if filepath:
+        if filepath := askdirectory():
             self.editPath.delete(0, END)
             self.editPath.insert(0, filepath)
 

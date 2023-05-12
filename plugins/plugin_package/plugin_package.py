@@ -32,14 +32,13 @@ class CCPluginPackage(cocos.CCPlugin):
     def run(self, argv, dependencies):
         if '--anysdk' in argv:
             argv.remove('--anysdk')
-            cmd = self._get_cocospackage_path() + ' --runincocos ' + ' '.join(argv)
-            ret = self._run_cmd(cmd)
+            cmd = f'{self._get_cocospackage_path()} --runincocos ' + ' '.join(argv)
         else:
             if '--sdkbox' in argv:
                 argv.remove('--sdkbox')
-            cmd = self._get_sdkbox_path() + ' --runincocos ' + ' '.join(argv)
-            ret = self._run_cmd(cmd)
-        if 0 != ret:
+            cmd = f'{self._get_sdkbox_path()} --runincocos ' + ' '.join(argv)
+        ret = self._run_cmd(cmd)
+        if ret != 0:
             message = MultiLanguage.get_string('COCOS_ERROR_RUNNING_CMD_RET_FMT', str(ret))
             raise cocos.CCPluginError(message, cocos.CCPluginError.ERROR_RUNNING_CMD)
 

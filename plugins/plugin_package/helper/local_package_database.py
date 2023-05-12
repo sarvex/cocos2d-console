@@ -10,9 +10,8 @@ class LocalPackagesDatabase(object):
     def __init__(self, path):
         self._path = path
         if os.path.isfile(self._path):
-            f = open(self._path, "rb")
-            self._data = json.load(f)
-            f.close()
+            with open(self._path, "rb") as f:
+                self._data = json.load(f)
         else:
             self._data = {}
 

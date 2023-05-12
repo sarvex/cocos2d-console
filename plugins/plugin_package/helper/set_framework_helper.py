@@ -84,9 +84,8 @@ class SetFrameworkHelper(object):
 
     def save_install_json(self, text):
         install_json_file = self._package_path + os.sep + "install.json"
-        f = open(install_json_file, "wb")
-        f.write(text)
-        f.close()
+        with open(install_json_file, "wb") as f:
+            f.write(text)
 
     def load_sln_win32(self):
         if not "proj.win32" in self._project:

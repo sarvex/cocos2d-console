@@ -65,7 +65,7 @@ def copy_files_with_rules(src_rootDir, src, dst, include = None, exclude = None)
                     if not os.path.exists(dst):
                         os.makedirs(dst)
                     shutil.copy(abs_path, dst)
-    elif (exclude is not None):
+    else:
         # have exclude
         for name in os.listdir(src):
             abs_path = os.path.join(src, name)
@@ -94,7 +94,7 @@ def convert_rules(rules):
     for rule in rules:
         ret = rule.replace('.', '\\.')
         ret = ret.replace('*', '.*')
-        ret = "%s" % ret
+        ret = f"{ret}"
         ret_rules.append(ret)
 
     return ret_rules

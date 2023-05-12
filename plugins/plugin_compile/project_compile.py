@@ -140,22 +140,12 @@ class CCPluginCompile(cocos.CCPlugin):
         if args.app_abi:
             self.app_abi = " ".join(args.app_abi.split(":"))
 
-        self.cppflags = None
-        if args.cppflags:
-            self.cppflags = args.cppflags
-
-        self.ndk_toolchain = None
-        if args.toolchain:
-            self.ndk_toolchain = args.toolchain
-
+        self.cppflags = args.cppflags if args.cppflags else None
+        self.ndk_toolchain = args.toolchain if args.toolchain else None
         # Win32 arguments
         self.vs_version = args.vs_version
 
-        # iOS/Mac arguments
-        self.xcode_target_name = None
-        if args.target_name is not None:
-            self.xcode_target_name = args.target_name
-
+        self.xcode_target_name = None if args.target_name is None else args.target_name
         if args.compile_script is not None:
             self._compile_script = bool(args.compile_script)
         else:
@@ -163,21 +153,17 @@ class CCPluginCompile(cocos.CCPlugin):
 
         self._ap = args.android_platform
 
-        if args.jobs is not None:
-            self._jobs = args.jobs
-        else:
-            self._jobs = self.get_num_of_cpu()
+        self._jobs = args.jobs if args.jobs is not None else self.get_num_of_cpu()
         self._has_sourcemap = args.source_map
         self._web_advanced = args.advanced
         self._no_res = args.no_res
 
         if args.output_dir is None:
             self._output_dir = self._get_output_dir()
+        elif os.path.isabs(args.output_dir):
+            self._output_dir = args.output_dir
         else:
-            if os.path.isabs(args.output_dir):
-                self._output_dir = args.output_dir
-            else:
-                self._output_dir = os.path.abspath(args.output_dir)
+            self._output_dir = os.path.abspath(args.output_dir)
 
         self._sign_id = args.sign_id
 
@@ -195,9 +181,7 @@ class CCPluginCompile(cocos.CCPlugin):
 
         if ignore_case:
             check_value = value.lower()
-            right_values = []
-            for v in available_values:
-                right_values.append(v.lower())
+            right_values = [v.lower() for v in available_values]
         else:
             check_value = value
             right_values = available_values
@@ -217,18 +201,28 @@ class CCPluginCompile(cocos.CCPlugin):
     def _get_output_dir(self):
         project_dir = self._project.get_project_dir()
         cur_platform = self._platforms.get_current_platform()
-        if self._project._is_script_project():
-            if self._project._is_js_project() and self._platforms.is_web_active():
-                cur_platform = CCPluginCompile.WEB_PLATFORM_FOLDER_NAME
+        if not self._project._is_script_project():
+            return os.path.join(
+                project_dir,
+                CCPluginCompile.OUTPUT_DIR_NATIVE,
+                self._mode,
+                cur_platform,
+            )
 
-            if self._mode == 'debug':
-                output_dir = os.path.join(project_dir, CCPluginCompile.OUTPUT_DIR_SCRIPT_DEBUG, cur_platform)
-            else:
-                output_dir = os.path.join(project_dir, CCPluginCompile.OUTPUT_DIR_SCRIPT_RELEASE, cur_platform)
-        else:
-            output_dir = os.path.join(project_dir, CCPluginCompile.OUTPUT_DIR_NATIVE, self._mode, cur_platform)
+        if self._project._is_js_project() and self._platforms.is_web_active():
+            cur_platform = CCPluginCompile.WEB_PLATFORM_FOLDER_NAME
 
-        return output_dir
+        return (
+            os.path.join(
+                project_dir, CCPluginCompile.OUTPUT_DIR_SCRIPT_DEBUG, cur_platform
+            )
+            if self._mode == 'debug'
+            else os.path.join(
+                project_dir,
+                CCPluginCompile.OUTPUT_DIR_SCRIPT_RELEASE,
+                cur_platform,
+            )
+        )
 
     def _gen_custom_step_args(self):
         self._custom_step_args = {
@@ -279,33 +273,30 @@ class CCPluginCompile(cocos.CCPlugin):
 
         try:
             outfile = None
-            open_file = open(cfg_file_path)
-            cfg_info = json.load(open_file)
-            open_file.close()
+            with open(cfg_file_path) as open_file:
+                cfg_info = json.load(open_file)
             open_file = None
             changed = False
-            if key_of_copy is not None:
-                if cfg_info.has_key(key_of_copy):
-                    src_list = cfg_info[key_of_copy]
-                    ret_list = self._convert_cfg_list(src_list, build_cfg_dir)
-                    cfg_info[CCPluginCompile.CFG_KEY_COPY_RESOURCES] = ret_list
-                    del cfg_info[key_of_copy]
-                    changed = True
+            if key_of_copy is not None and cfg_info.has_key(key_of_copy):
+                src_list = cfg_info[key_of_copy]
+                ret_list = self._convert_cfg_list(src_list, build_cfg_dir)
+                cfg_info[CCPluginCompile.CFG_KEY_COPY_RESOURCES] = ret_list
+                del cfg_info[key_of_copy]
+                changed = True
 
-            if key_of_must_copy is not None:
-                if cfg_info.has_key(key_of_must_copy):
-                    src_list = cfg_info[key_of_must_copy]
-                    ret_list = self._convert_cfg_list(src_list, build_cfg_dir)
-                    cfg_info[CCPluginCompile.CFG_KEY_MUST_COPY_RESOURCES] = ret_list
-                    del cfg_info[key_of_must_copy]
-                    changed = True
+            if key_of_must_copy is not None and cfg_info.has_key(key_of_must_copy):
+                src_list = cfg_info[key_of_must_copy]
+                ret_list = self._convert_cfg_list(src_list, build_cfg_dir)
+                cfg_info[CCPluginCompile.CFG_KEY_MUST_COPY_RESOURCES] = ret_list
+                del cfg_info[key_of_must_copy]
+                changed = True
 
             if changed:
                 # backup the old-cfg
                 split_list = os.path.splitext(CCPluginCompile.BUILD_CONFIG_FILE)
                 file_name = split_list[0]
                 ext_name = split_list[1]
-                bak_name = file_name + "-for-v0.1" + ext_name
+                bak_name = f"{file_name}-for-v0.1{ext_name}"
                 bak_file_path = os.path.join(build_cfg_dir, bak_name)
                 if os.path.exists(bak_file_path):
                     os.remove(bak_file_path)
@@ -328,15 +319,12 @@ class CCPluginCompile(cocos.CCPlugin):
         for element in src_list:
             ret_element = {}
             if str(element).endswith("/"):
-                sub_str = element[0:len(element)-1]
+                sub_str = element[:-1]
                 ret_element["from"] = sub_str
                 ret_element["to"] = ""
             else:
                 element_full_path = os.path.join(build_cfg_dir, element)
-                if os.path.isfile(element_full_path):
-                    to_dir = ""
-                else:
-                    to_dir = os.path.basename(element)
+                to_dir = "" if os.path.isfile(element_full_path) else os.path.basename(element)
                 ret_element["from"] = element
                 ret_element["to"] = to_dir
 
@@ -370,19 +358,19 @@ class CCPluginCompile(cocos.CCPlugin):
         compile_cmd = "\"%s\" luacompile -s \"%s\" -d \"%s\"" % (cocos_cmd_path, src_dir, dst_dir)
 
         if not self._compile_script:
-            compile_cmd = "%s --disable-compile" % compile_cmd
+            compile_cmd = f"{compile_cmd} --disable-compile"
         elif build_64:
-            compile_cmd = "%s --bytecode-64bit" % compile_cmd
+            compile_cmd = f"{compile_cmd} --bytecode-64bit"
 
         if self._lua_encrypt:
             add_para = ""
             if self._lua_encrypt_key is not None:
-                add_para = "%s -k %s" % (add_para, self._lua_encrypt_key)
+                add_para = f"{add_para} -k {self._lua_encrypt_key}"
 
             if self._lua_encrypt_sign is not None:
-                add_para = "%s -b %s" % (add_para, self._lua_encrypt_sign)
+                add_para = f"{add_para} -b {self._lua_encrypt_sign}"
 
-            compile_cmd = "%s -e %s" % (compile_cmd, add_para)
+            compile_cmd = f"{compile_cmd} -e {add_para}"
 
         # run compile command
         self._run_cmd(compile_cmd)
@@ -416,12 +404,7 @@ class CCPluginCompile(cocos.CCPlugin):
         self.end_warning = "%s\n%s" % (self.end_warning, warning_str)
 
     def is_valid_path(self, p):
-        if (p is not None) and os.path.exists(p):
-            ret = True
-        else:
-            ret = False
-
-        return ret
+        return bool((p is not None) and os.path.exists(p))
 
     def get_engine_version_num(self):
         # 1. get engine version from .cocos_project.json
@@ -437,9 +420,8 @@ class CCPluginCompile(cocos.CCPlugin):
             return None
 
         version_pattern = r'cocos2d-x-([\d]+)\.([\d]+)'
-        match = re.match(version_pattern, engine_ver_str)
-        if match:
-            return ((int)(match.group(1)), (int)(match.group(2)))
+        if match := re.match(version_pattern, engine_ver_str):
+            return int(match[1]), int(match[2])
         else:
             return None
 
@@ -470,7 +452,7 @@ class CCPluginCompile(cocos.CCPlugin):
         minor_ver = engine_version_num[1]
         if main_ver > 3 or (main_ver == 3 and minor_ver >= 15):
             gradle_support_ndk = True
-            
+
 
         from build_android import AndroidBuilder
         builder = AndroidBuilder(self._verbose, project_android_dir,
@@ -483,56 +465,53 @@ class CCPluginCompile(cocos.CCPlugin):
         # update the project with the android platform
         builder.update_project(self._ap)
 
-        if not self._project._is_script_project() or self._project._is_native_support():
-            if self._build_type != "none" and not gradle_support_ndk:
-                # build native code
-                cocos.Logging.info(MultiLanguage.get_string('COMPILE_INFO_BUILD_NATIVE'))
-                ndk_build_param = [
-                    "-j%s" % self._jobs
-                ]
+        if (
+            (
+                not self._project._is_script_project()
+                or self._project._is_native_support()
+            )
+            and self._build_type != "none"
+            and not gradle_support_ndk
+        ):
+            # build native code
+            cocos.Logging.info(MultiLanguage.get_string('COMPILE_INFO_BUILD_NATIVE'))
+            ndk_build_param = [f"-j{self._jobs}"]
 
-                if self.app_abi:
-                    abi_param = "APP_ABI=\"%s\"" % self.app_abi
-                    ndk_build_param.append(abi_param)
+            if self.app_abi:
+                abi_param = "APP_ABI=\"%s\"" % self.app_abi
+                ndk_build_param.append(abi_param)
 
-                if self.ndk_toolchain:
-                    toolchain_param = "NDK_TOOLCHAIN=%s" % self.ndk_toolchain
-                    ndk_build_param.append(toolchain_param)
+            if self.ndk_toolchain:
+                toolchain_param = f"NDK_TOOLCHAIN={self.ndk_toolchain}"
+                ndk_build_param.append(toolchain_param)
 
-                self._project.invoke_custom_step_script(cocos_project.Project.CUSTOM_STEP_PRE_NDK_BUILD, target_platform, args_ndk_copy)
+            self._project.invoke_custom_step_script(cocos_project.Project.CUSTOM_STEP_PRE_NDK_BUILD, target_platform, args_ndk_copy)
 
-                modify_mk = False
-                app_mk = os.path.join(project_android_dir, "app/jni/Application.mk")
+            modify_mk = False
+            app_mk = os.path.join(project_android_dir, "app/jni/Application.mk")
 
-                mk_content = None
-                if self.cppflags and os.path.exists(app_mk):
-                    # record the content of Application.mk
-                    f = open(app_mk)
+            mk_content = None
+            if self.cppflags and os.path.exists(app_mk):
+                with open(app_mk) as f:
                     mk_content = f.read()
-                    f.close()
-
-                    # Add cpp flags
-                    f = open(app_mk, "a")
+                with open(app_mk, "a") as f:
                     f.write("\nAPP_CPPFLAGS += %s" % self.cppflags)
-                    f.close()
-                    modify_mk = True
+                modify_mk = True
 
-                try:
-                    builder.do_ndk_build(ndk_build_param, self._mode, self._build_type, self)
-                except Exception as e:
-                    if e.__class__.__name__ == 'CCPluginError':
-                        raise e
-                    else:
-                        raise cocos.CCPluginError(MultiLanguage.get_string('COMPILE_ERROR_NDK_BUILD_FAILED'),
-                                                  cocos.CCPluginError.ERROR_BUILD_FAILED)
-                finally:
+            try:
+                builder.do_ndk_build(ndk_build_param, self._mode, self._build_type, self)
+            except Exception as e:
+                if e.__class__.__name__ == 'CCPluginError':
+                    raise e
+                else:
+                    raise cocos.CCPluginError(MultiLanguage.get_string('COMPILE_ERROR_NDK_BUILD_FAILED'),
+                                              cocos.CCPluginError.ERROR_BUILD_FAILED)
+            finally:
                     # roll-back the Application.mk
-                    if modify_mk:
-                        f = open(app_mk, "w")
+                if modify_mk:
+                    with open(app_mk, "w") as f:
                         f.write(mk_content)
-                        f.close()
-
-                self._project.invoke_custom_step_script(cocos_project.Project.CUSTOM_STEP_POST_NDK_BUILD, target_platform, args_ndk_copy)
+            self._project.invoke_custom_step_script(cocos_project.Project.CUSTOM_STEP_POST_NDK_BUILD, target_platform, args_ndk_copy)
 
         # build apk
         if not self._no_apk:
@@ -563,7 +542,7 @@ class CCPluginCompile(cocos.CCPlugin):
         self.xcodeproj_name = xcodeproj_name
         project_dir = self._platforms.project_path()
         podfile = os.path.join(project_dir, 'Podfile')
-        self.xcworkspace = os.path.join(project_dir, name+'.xcworkspace')
+        self.xcworkspace = os.path.join(project_dir, f'{name}.xcworkspace')
         self.cocoapods = os.path.exists(self.xcworkspace) and os.path.exists(podfile)
         if self.cocoapods:
           cocos.Logging.info(MultiLanguage.get_string('COMPILE_INFO_USE_COCOAPODS'))
@@ -573,19 +552,17 @@ class CCPluginCompile(cocos.CCPlugin):
         if not cocos.os_is_mac():
             return command;
         from distutils import spawn
-        if spawn.find_executable("xcpretty") == None:
+        if spawn.find_executable("xcpretty") is None:
             return command
-        return command + " | xcpretty"
+        return f"{command} | xcpretty"
 
 
     def _remove_res(self, target_path):
         build_cfg_dir = self._build_cfg_path()
         cfg_file = os.path.join(build_cfg_dir, CCPluginCompile.BUILD_CONFIG_FILE)
         if os.path.exists(cfg_file) and os.path.isfile(cfg_file):
-            # have config file
-            open_file = open(cfg_file)
-            cfg_info = json.load(open_file)
-            open_file.close()
+            with open(cfg_file) as open_file:
+                cfg_info = json.load(open_file)
             if cfg_info.has_key("remove_res"):
                 remove_list = cfg_info["remove_res"]
                 for f in remove_list:
@@ -613,12 +590,7 @@ class CCPluginCompile(cocos.CCPlugin):
             proj_dir = self._project.get_project_dir()
             if self._project._is_js_project():
                 check_dir = os.path.join(proj_dir, "frameworks", "cocos2d-x")
-                if os.path.isdir(check_dir):
-                    # the case for jsb in cocos2d-x engine
-                    engine_dir = check_dir
-                else:
-                    # the case for jsb in cocos2d-js engine
-                    engine_dir = proj_dir
+                engine_dir = check_dir if os.path.isdir(check_dir) else proj_dir
             elif self._project._is_lua_project():
                 engine_dir = os.path.join(proj_dir, "frameworks", "cocos2d-x")
             else:
@@ -629,13 +601,13 @@ class CCPluginCompile(cocos.CCPlugin):
         return engine_dir
 
     def backup_dir(self, dir_path):
-        backup_dir = "%s%s" % (dir_path, CCPluginCompile.BACKUP_SUFFIX)
+        backup_dir = f"{dir_path}{CCPluginCompile.BACKUP_SUFFIX}"
         if os.path.exists(backup_dir):
             shutil.rmtree(backup_dir)
         shutil.copytree(dir_path, backup_dir)
 
     def reset_backup_dir(self, dir_path):
-        backup_dir = "%s%s" % (dir_path, CCPluginCompile.BACKUP_SUFFIX)
+        backup_dir = f"{dir_path}{CCPluginCompile.BACKUP_SUFFIX}"
         if os.path.exists(dir_path):
             shutil.rmtree(dir_path)
         os.rename(backup_dir, dir_path)
@@ -656,10 +628,7 @@ class CCPluginCompile(cocos.CCPlugin):
                     isFound = True
                     break
 
-        if isFound:
-            return engine_js_dir
-        else:
-            return None
+        return engine_js_dir if isFound else None
 
     def build_ios(self):
         if not self._platforms.is_ios_active():
@@ -904,7 +873,7 @@ class CCPluginCompile(cocos.CCPlugin):
             raise cocos.CCPluginError(message, cocos.CCPluginError.ERROR_PARSE_FILE)
 
         if os.path.isdir(output_dir):
-            target_app_dir = os.path.join(output_dir, "%s.app" % targetName)
+            target_app_dir = os.path.join(output_dir, f"{targetName}.app")
             if os.path.isdir(target_app_dir):
                 shutil.rmtree(target_app_dir)
 
@@ -935,16 +904,18 @@ class CCPluginCompile(cocos.CCPlugin):
         try:
             cocos.Logging.info(MultiLanguage.get_string('COMPILE_INFO_BUILDING'))
 
-            command = ' '.join([
-                "xcodebuild",
-                "-workspace" if self.cocoapods else "-project",
-                "\"%s\"" % self.xcworkspace if self.cocoapods else projectPath,
-                "-configuration",
-                "%s" % 'Debug' if self._mode == 'debug' else 'Release',
-                "-scheme" if self.cocoapods else "-target",
-                "\"%s\"" % targetName,
-                "CONFIGURATION_BUILD_DIR=\"%s\"" % (output_dir)
-                ])
+            command = ' '.join(
+                [
+                    "xcodebuild",
+                    "-workspace" if self.cocoapods else "-project",
+                    "\"%s\"" % self.xcworkspace if self.cocoapods else projectPath,
+                    "-configuration",
+                    'Debug' if self._mode == 'debug' else 'Release',
+                    "-scheme" if self.cocoapods else "-target",
+                    "\"%s\"" % targetName,
+                    "CONFIGURATION_BUILD_DIR=\"%s\"" % (output_dir),
+                ]
+            )
 
             command = self.append_xcpretty_if_installed(command)
             self._run_cmd(command)
@@ -957,7 +928,7 @@ class CCPluginCompile(cocos.CCPlugin):
                     filename = os.path.join(output_dir, filename)
                     os.remove(filename)
 
-            self._macapp_path = os.path.join(output_dir, "%s.app" % targetName)
+            self._macapp_path = os.path.join(output_dir, f"{targetName}.app")
             if self._no_res:
                 resource_path = os.path.join(self._macapp_path, "Contents", "Resources")
                 self._remove_res(resource_path)
@@ -996,10 +967,9 @@ class CCPluginCompile(cocos.CCPlugin):
 
         # get the float value of engine version
         version_pattern = r'cocos2d-x[^0-9]*([\d]+)\.([\d]+)'
-        match = re.match(version_pattern, engine_ver_str)
-        if match:
-            major_ver = int(match.group(1))
-            minor_ver = int(match.group(2))
+        if match := re.match(version_pattern, engine_ver_str):
+            major_ver = int(match[1])
+            minor_ver = int(match[2])
         else:
             major_ver = -1
             minor_ver = -1
@@ -1007,20 +977,14 @@ class CCPluginCompile(cocos.CCPlugin):
         if major_ver < 0:
             return ret
 
-        if (major_ver > 3) or (major_ver == 3 and minor_ver >= 7):
-            ret = [ 2013, 2015, 2017 ]
-        else:
-            ret = [ 2012, 2013 ]
-
-        return ret
+        return (
+            [2013, 2015, 2017]
+            if (major_ver > 3) or (major_ver == 3 and minor_ver >= 7)
+            else [2012, 2013]
+        )
 
     def get_min_vs_version(self):
-        if self._platforms.is_metro_active():
-            # metro project required VS 2013
-            return 2013
-        else:
-            # win32 project required VS 2012
-            return 2012
+        return 2013 if self._platforms.is_metro_active() else 2012
 
     def get_available_devenv(self, required_versions, min_ver, specify_vs_ver=None):
         if required_versions is None or len(required_versions) == 0:
@@ -1028,18 +992,13 @@ class CCPluginCompile(cocos.CCPlugin):
                 # Not specify VS version, find newest version
                 needUpgrade, commandPath = utils.get_newest_devenv(min_ver)
             else:
-                # Have specified VS version
                 if specify_vs_ver < min_ver:
                     # Specified version is lower than required, raise error
                     raise cocos.CCPluginError(MultiLanguage.get_string('COMPILE_ERROR_LOW_VS_VER'),
                                               cocos.CCPluginError.ERROR_WRONG_ARGS)
-                else:
-                    # Get the specified VS
-                    commandPath = utils.get_devenv_path(specify_vs_ver)
-                    if specify_vs_ver > min_ver:
-                        needUpgrade = True
-                    else:
-                        needUpgrade = False
+                # Get the specified VS
+                commandPath = utils.get_devenv_path(specify_vs_ver)
+                needUpgrade = specify_vs_ver > min_ver
         else:
             needUpgrade = False
             if specify_vs_ver is None:
@@ -1049,13 +1008,11 @@ class CCPluginCompile(cocos.CCPlugin):
                     commandPath = utils.get_devenv_path(v)
                     if commandPath is not None:
                         break
+            elif specify_vs_ver in required_versions:
+                commandPath = utils.get_devenv_path(specify_vs_ver)
             else:
-                # use specified VS version
-                if specify_vs_ver in required_versions:
-                    commandPath = utils.get_devenv_path(specify_vs_ver)
-                else:
-                    raise cocos.CCPluginError(MultiLanguage.get_string('COMPILE_ERROR_WRONG_VS_VER_FMT', specify_vs_ver),
-                                              cocos.CCPluginError.ERROR_WRONG_ARGS)
+                raise cocos.CCPluginError(MultiLanguage.get_string('COMPILE_ERROR_WRONG_VS_VER_FMT', specify_vs_ver),
+                                          cocos.CCPluginError.ERROR_WRONG_ARGS)
 
         if commandPath is None:
             message = MultiLanguage.get_string('COMPILE_ERROR_VS_NOT_FOUND')
@@ -1068,30 +1025,25 @@ class CCPluginCompile(cocos.CCPlugin):
             if specify_vs_ver is None:
                 # Not specify VS version, find newest version
                 commandPath = utils.get_newest_msbuild(min_ver)
+            elif specify_vs_ver < min_ver:
+                # Specified version is lower than required, raise error
+                raise cocos.CCPluginError(MultiLanguage.get_string('COMPILE_ERROR_LOW_VS_VER'),
+                                          cocos.CCPluginError.ERROR_WRONG_ARGS)
             else:
-                # Have specified VS version
-                if specify_vs_ver < min_ver:
-                    # Specified version is lower than required, raise error
-                    raise cocos.CCPluginError(MultiLanguage.get_string('COMPILE_ERROR_LOW_VS_VER'),
-                                              cocos.CCPluginError.ERROR_WRONG_ARGS)
-                else:
-                    # Get the specified VS
-                    commandPath = utils.get_msbuild_path(specify_vs_ver)
+                # Get the specified VS
+                commandPath = utils.get_msbuild_path(specify_vs_ver)
+        elif specify_vs_ver is None:
+            # find VS in required versions
+            commandPath = None
+            for v in required_versions:
+                commandPath = utils.get_msbuild_path(v)
+                if commandPath is not None:
+                    break
+        elif specify_vs_ver in required_versions:
+            commandPath = utils.get_msbuild_path(specify_vs_ver)
         else:
-            if specify_vs_ver is None:
-                # find VS in required versions
-                commandPath = None
-                for v in required_versions:
-                    commandPath = utils.get_msbuild_path(v)
-                    if commandPath is not None:
-                        break
-            else:
-                # use specified VS version
-                if specify_vs_ver in required_versions:
-                    commandPath = utils.get_msbuild_path(specify_vs_ver)
-                else:
-                    raise cocos.CCPluginError(MultiLanguage.get_string('COMPILE_ERROR_WRONG_VS_VER_FMT', specify_vs_ver),
-                                              cocos.CCPluginError.ERROR_WRONG_ARGS)
+            raise cocos.CCPluginError(MultiLanguage.get_string('COMPILE_ERROR_WRONG_VS_VER_FMT', specify_vs_ver),
+                                      cocos.CCPluginError.ERROR_WRONG_ARGS)
 
         if commandPath is None:
             message = MultiLanguage.get_string('COMPILE_ERROR_VS_NOT_FOUND')
@@ -1131,20 +1083,22 @@ class CCPluginCompile(cocos.CCPlugin):
         else:
             cocos.Logging.info(MultiLanguage.get_string('COMPILE_INFO_DEVENV_NOT_FOUND'))
 
-            msbuild_path = self.get_available_msbuild(required_versions, min_ver, specify_vs_ver)
-
-            if msbuild_path:
+            if msbuild_path := self.get_available_msbuild(
+                required_versions, min_ver, specify_vs_ver
+            ):
                 msbuild_path = os.path.join(msbuild_path, 'MSBuild.exe')
                 cocos.Logging.info(MultiLanguage.get_string('COMPILE_INFO_FIND_MSBUILD_FMT', msbuild_path))
 
                 job_number = 2
-                build_command = ' '.join([
-                    '\"%s\"' % msbuild_path,
-                    '\"%s\"' % sln_file,
-                    '/target:%s' % project_name,
-                    '/property:Configuration=%s' % build_mode,
-                    '/maxcpucount:%s' % job_number
-                    ])
+                build_command = ' '.join(
+                    [
+                        '\"%s\"' % msbuild_path,
+                        '\"%s\"' % sln_file,
+                        f'/target:{project_name}',
+                        f'/property:Configuration={build_mode}',
+                        f'/maxcpucount:{job_number}',
+                    ]
+                )
 
                 self._run_cmd(build_command)
             else:
@@ -1191,7 +1145,7 @@ class CCPluginCompile(cocos.CCPlugin):
         self.build_vs_project(projectPath, self.project_name, build_mode, self.vs_version)
 
         # copy files
-        build_folder_name = "%s.win32" % build_mode
+        build_folder_name = f"{build_mode}.win32"
         build_folder_path = os.path.join(win32_projectdir, build_folder_name)
         if not os.path.isdir(build_folder_path):
             message = MultiLanguage.get_string('COMPILE_ERROR_BUILD_PATH_NOT_FOUND_FMT', build_folder_path)
@@ -1204,7 +1158,7 @@ class CCPluginCompile(cocos.CCPlugin):
                 ele_full_path = os.path.join(output_dir, element)
                 if os.path.isfile(ele_full_path):
                     base_name, file_ext = os.path.splitext(element)
-                    if not file_ext == ".exe":
+                    if file_ext != ".exe":
                         os.remove(ele_full_path)
                 elif os.path.isdir(ele_full_path):
                     shutil.rmtree(ele_full_path)
@@ -1220,7 +1174,7 @@ class CCPluginCompile(cocos.CCPlugin):
 
         # copy exe
         files = os.listdir(exe_out_dir)
-        proj_exe_name = "%s.exe" % self.project_name
+        proj_exe_name = f"{self.project_name}.exe"
         for filename in files:
             if filename == proj_exe_name:
                 file_path = os.path.join(exe_out_dir, filename)

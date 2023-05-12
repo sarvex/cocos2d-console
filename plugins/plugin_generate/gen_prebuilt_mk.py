@@ -44,11 +44,10 @@ class MKGenerator(object):
 
         if dst_mk_path is None:
             self.dst_mk_path = os.path.join(os.path.dirname(src_mk_path), "Android-prebuilt.mk")
+        elif os.path.isabs(dst_mk_path):
+            self.dst_mk_path = dst_mk_path
         else:
-            if os.path.isabs(dst_mk_path):
-                self.dst_mk_path = dst_mk_path
-            else:
-                self.dst_mk_path = os.path.abspath(dst_mk_path)
+            self.dst_mk_path = os.path.abspath(dst_mk_path)
 
         dst_mk_dir = os.path.dirname(self.dst_mk_path)
         if not os.path.exists(dst_mk_dir):
@@ -62,20 +61,20 @@ class MKGenerator(object):
             trim_line = trim_line.rstrip(" ")
             match1 = re.match(MKGenerator.LIB_MODULE_FILENAME_PATTERN, trim_line)
             if match1 is not None:
-                module_file_name = match1.group(1)
+                module_file_name = match1[1]
 
             match2 = re.match(MKGenerator.LIB_MODULE_PATTERN, trim_line)
             if match2 is not None:
-                module_name = match2.group(1)
+                module_name = match2[1]
 
         ret = None
         if module_file_name is not None:
-            ret = "%s.a" % module_file_name
+            ret = f"{module_file_name}.a"
         elif module_name is not None:
             if module_name.startswith('lib'):
-                ret = "%s.a" % module_name
+                ret = f"{module_name}.a"
             else:
-                ret = "lib%s.a" % module_name
+                ret = f"lib{module_name}.a"
 
         return ret
 
@@ -134,17 +133,16 @@ class MKGenerator(object):
 
         new_lines = []
         insert_idx = -1
-        cur_idx = 0
         include_paths = []
         cfg_begin = False
-        for line in lines:
+        for cur_idx, line in enumerate(lines):
             trim_line = line.lstrip(" ")
             match = re.match(MKGenerator.EXPORT_INCLUDE_PATTERN, trim_line)
             if match is not None:
                 if insert_idx == -1:
                     insert_idx = cur_idx
 
-                path_str = match.group(1)
+                path_str = match[1]
                 if line.endswith("\\\n"):
                     cfg_begin = True
                     path_str = path_str.replace("\\", "")
@@ -159,22 +157,19 @@ class MKGenerator(object):
                 include_paths += path_str.split()
             else:
                 new_lines.append(line)
-            cur_idx += 1
-
         src_dir = os.path.dirname(self.src_mk_path)
         dst_dir = os.path.dirname(self.dst_mk_path)
         rel_path = os.path.relpath(src_dir, dst_dir)
         new_include_paths = []
         for include_path in include_paths:
             if include_path.startswith("$(LOCAL_PATH)"):
-                new_path = include_path.replace("$(LOCAL_PATH)", "$(LOCAL_PATH)/%s" % rel_path)
+                new_path = include_path.replace("$(LOCAL_PATH)", f"$(LOCAL_PATH)/{rel_path}")
             else:
-                new_path = "$(LOCAL_PATH)/%s/%s" % (rel_path, include_path)
+                new_path = f"$(LOCAL_PATH)/{rel_path}/{include_path}"
             new_include_paths.append(new_path)
 
-        if len(new_include_paths) > 0:
-            new_path_str = "LOCAL_EXPORT_C_INCLUDES := "
-            new_path_str += " \\\n".join(new_include_paths)
+        if new_include_paths:
+            new_path_str = "LOCAL_EXPORT_C_INCLUDES := " + " \\\n".join(new_include_paths)
             new_path_str += "\n"
             if insert_idx >= 0:
                 new_lines.insert(insert_idx, new_path_str)
@@ -208,13 +203,8 @@ class MKGenerator(object):
             trim_line = line.lstrip(" ")
             match = re.match(MKGenerator.INCLUDE_MODULE_PATTERN, trim_line)
             if match is not None:
-                module = match.group(1)
-                need_modify = True
-                for str in ignore_strs:
-                    if module.find(str) >= 0:
-                        need_modify = False
-                        break
-
+                module = match[1]
+                need_modify = all(module.find(str) < 0 for str in ignore_strs)
                 if need_modify:
                     new_lines.append("$(call import-module, %s/prebuilt-mk)\n" % module)
                 else:
@@ -247,10 +237,10 @@ class MKGenerator(object):
 
     def split_modules(self, origin_lines):
         ret = []
-        cur_module = {}
-        cur_module[MKGenerator.KEY_MODULE_LINES] = []
-        cur_module[MKGenerator.KEY_IS_MODULE] = False
-
+        cur_module = {
+            MKGenerator.KEY_MODULE_LINES: [],
+            MKGenerator.KEY_IS_MODULE: False,
+        }
         pattern_begin = r'include[ \t]+\$\(CLEAR_VARS\)'
         pattern_end = r'include[ \t]+\$\(BUILD_STATIC_LIBRARY\)'
         for line in origin_lines:
@@ -258,19 +248,19 @@ class MKGenerator(object):
                 if len(cur_module[MKGenerator.KEY_MODULE_LINES]) > 0:
                     ret.append(cur_module)
 
-                cur_module = {}
-                cur_module[MKGenerator.KEY_MODULE_LINES] = []
-                cur_module[MKGenerator.KEY_IS_MODULE] = True
-
+                cur_module = {
+                    MKGenerator.KEY_MODULE_LINES: [],
+                    MKGenerator.KEY_IS_MODULE: True,
+                }
             cur_module[MKGenerator.KEY_MODULE_LINES].append(line)
 
             if re.match(pattern_end, line):
                 if len(cur_module[MKGenerator.KEY_MODULE_LINES]) > 0:
                     ret.append(cur_module)
-                cur_module = {}
-                cur_module[MKGenerator.KEY_MODULE_LINES] = []
-                cur_module[MKGenerator.KEY_IS_MODULE] = False
-
+                cur_module = {
+                    MKGenerator.KEY_MODULE_LINES: [],
+                    MKGenerator.KEY_IS_MODULE: False,
+                }
         if len(cur_module[MKGenerator.KEY_MODULE_LINES]) > 0:
             ret.append(cur_module)
 
@@ -280,8 +270,8 @@ class MKGenerator(object):
         # modify the LOCAL_SRC_FILES
         lib_file_name = self.get_lib_file_name(module_lines)
         if lib_file_name is None:
-            raise Exception("The mk file %s not specify module name." % self.src_mk_path)
-        relative_path = "%s/$(TARGET_ARCH_ABI)/%s" % (relative_path, lib_file_name)
+            raise Exception(f"The mk file {self.src_mk_path} not specify module name.")
+        relative_path = f"{relative_path}/$(TARGET_ARCH_ABI)/{lib_file_name}"
         dst_lines = self.modidy_src_file(module_lines, relative_path)
 
         # remove the LOCAL_C_INCLUDES & LOCAL_LDLIBS
@@ -300,42 +290,37 @@ class MKGenerator(object):
         return dst_lines
 
     def do_generate(self):
-        src_mk_obj = open(self.src_mk_path)
-
-        # open the dst file
-        tmp_file = "%s-tmp" % self.src_mk_path
-        use_tmp_file = False
-        if self.dst_mk_path == self.src_mk_path:
-            use_tmp_file = True
-            dst_mk_obj = open(tmp_file, "w")
-        else:
-            dst_mk_obj = open(self.dst_mk_path, "w")
-
-        relative_path = os.path.relpath(self.lib_file_path, os.path.dirname(self.dst_mk_path))
-
-        # read the src file
-        src_lines = src_mk_obj.readlines()
-
-        modules = self.split_modules(src_lines)
-        dst_lines = []
-        for module in modules:
-            if module[MKGenerator.KEY_IS_MODULE]:
-                ret_lines = self.handle_module(module[MKGenerator.KEY_MODULE_LINES], relative_path)
+        with open(self.src_mk_path) as src_mk_obj:
+                # open the dst file
+            tmp_file = f"{self.src_mk_path}-tmp"
+            use_tmp_file = False
+            if self.dst_mk_path == self.src_mk_path:
+                use_tmp_file = True
+                dst_mk_obj = open(tmp_file, "w")
             else:
-                ret_lines = module[MKGenerator.KEY_MODULE_LINES]
+                dst_mk_obj = open(self.dst_mk_path, "w")
 
-            for l in ret_lines:
-                dst_lines.append(l)
+            relative_path = os.path.relpath(self.lib_file_path, os.path.dirname(self.dst_mk_path))
 
-        # modify the import-module
-        dst_lines = self.modify_import_module(dst_lines)
+            # read the src file
+            src_lines = src_mk_obj.readlines()
 
-        dst_mk_obj.writelines(dst_lines)
+            modules = self.split_modules(src_lines)
+            dst_lines = []
+            for module in modules:
+                if module[MKGenerator.KEY_IS_MODULE]:
+                    ret_lines = self.handle_module(module[MKGenerator.KEY_MODULE_LINES], relative_path)
+                else:
+                    ret_lines = module[MKGenerator.KEY_MODULE_LINES]
 
-        #close files
-        dst_mk_obj.close()
-        src_mk_obj.close()
+                dst_lines.extend(iter(ret_lines))
+            # modify the import-module
+            dst_lines = self.modify_import_module(dst_lines)
 
+            dst_mk_obj.writelines(dst_lines)
+
+            #close files
+            dst_mk_obj.close()
         # rename the file if temp file used
         if use_tmp_file:
             os.remove(self.src_mk_path)

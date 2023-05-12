@@ -15,8 +15,9 @@ class FrameworkAdd(object):
     def parse_args(self, argv):
         from argparse import ArgumentParser
         parser = ArgumentParser(
-            prog="cocos package %s" % self.__class__.plugin_name(),
-            description=self.__class__.brief_description())
+            prog=f"cocos package {self.__class__.plugin_name()}",
+            description=self.__class__.brief_description(),
+        )
         parser.add_argument("keyword", metavar="PACKAGE_NAME",
                             help=MultiLanguage.get_string('PACKAGE_SEARCH_ARG_KEY'))
         return parser.parse_args(argv)

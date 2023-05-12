@@ -45,8 +45,10 @@ class LibsCompiler(cocos.CCPlugin):
     def parse_args(self, argv):
         """Custom and check param list.
         """
-        parser = ArgumentParser(prog="cocos %s" % self.__class__.plugin_name(),
-                                description=self.__class__.brief_description())
+        parser = ArgumentParser(
+            prog=f"cocos {self.__class__.plugin_name()}",
+            description=self.__class__.brief_description(),
+        )
         parser.add_argument('-c', dest='clean', action="store_true",
                             help=MultiLanguage.get_string('GEN_LIBS_ARG_CLEAN'))
         parser.add_argument('-e', dest='engine_path', help=MultiLanguage.get_string('GEN_LIBS_ARG_ENGINE'))
@@ -115,26 +117,19 @@ class LibsCompiler(cocos.CCPlugin):
             self.build_win = True
             self.build_android = True
         else:
-            self.build_ios = False
-            self.build_mac = False
             self.build_win = False
             self.build_android = False
             if 'win32' in args.platform:
                 self.build_win = True
-            if 'ios' in args.platform:
-                self.build_ios = True
-            if 'mac' in args.platform:
-                self.build_mac = True
+            self.build_ios = 'ios' in args.platform
+            self.build_mac = True if 'mac' in args.platform else False
             if 'android' in args.platform:
                 self.build_android = True
 
         self.disable_strip = args.disable_strip
         self.vs_version = args.vs_version
         self.use_incredibuild = False
-        if args.app_abi is None:
-            self.app_abi = 'armeabi-v7a'
-        else:
-            self.app_abi = args.app_abi
+        self.app_abi = 'armeabi-v7a' if args.app_abi is None else args.app_abi
         self.app_abi_list = self.app_abi.split(":")
         self.android_platform = args.android_platform
 
@@ -146,9 +141,8 @@ class LibsCompiler(cocos.CCPlugin):
                                 CCPluginError.ERROR_PATH_NOT_FOUND)
 
         try:
-            f = open(self.cfg_file_path)
-            self.cfg_info = json.load(f)
-            f.close()
+            with open(self.cfg_file_path) as f:
+                self.cfg_info = json.load(f)
         except:
             raise CCPluginError(MultiLanguage.get_string('GEN_LIBS_ERROR_PARSE_FILE_FMT', self.cfg_file_path),
                                 CCPluginError.ERROR_PARSE_FILE)
@@ -165,13 +159,11 @@ class LibsCompiler(cocos.CCPlugin):
         if self.clean:
             self.clean_libs()
 
-        if cocos.os_is_mac():
-            if self.build_mac or self.build_ios:
-                self.compile_mac_ios()
+        if cocos.os_is_mac() and (self.build_mac or self.build_ios):
+            self.compile_mac_ios()
 
-        if cocos.os_is_win32():
-            if self.build_win:
-                self.compile_win()
+        if cocos.os_is_win32() and self.build_win:
+            self.compile_win()
 
         if self.build_android:
             self.compile_android()
@@ -179,26 +171,24 @@ class LibsCompiler(cocos.CCPlugin):
             # self.modify_binary_mk()
 
     def build_win32_proj(self, cmd_path, sln_path, proj_name, mode):
-        build_cmd = " ".join([
-            "\"%s\"" % cmd_path,
-            "\"%s\"" % sln_path,
-            "/t:%s" % proj_name,
-            "/property:Configuration=%s" % mode,
-            "/m"
-        ])
+        build_cmd = " ".join(
+            [
+                "\"%s\"" % cmd_path,
+                "\"%s\"" % sln_path,
+                f"/t:{proj_name}",
+                f"/property:Configuration={mode}",
+                "/m",
+            ]
+        )
         self._run_cmd(build_cmd)
 
     def compile_win(self):
-        if self.mode == 'debug':
-            mode_str = 'Debug'
-        else:
-            mode_str = 'Release'
-
+        mode_str = 'Debug' if self.mode == 'debug' else 'Release'
         # get the VS versions will be used for compiling
         support_vs_versions = self.cfg_info[LibsCompiler.KEY_SUPPORT_VS_VERSIONS]
         compile_vs_versions = support_vs_versions
         if self.vs_version is not None:
-            if self.vs_version not in support_vs_versions:
+            if self.vs_version not in compile_vs_versions:
                 raise CCPluginError(MultiLanguage.get_string('GEN_LIBS_ERROR_NOT_SUPPORT_VS_FMT', self.vs_version),
                                     CCPluginError.ERROR_WRONG_ARGS)
             else:
@@ -213,7 +203,7 @@ class LibsCompiler(cocos.CCPlugin):
             else:
                 vs_cmd_info[vs_version] = vs_command
 
-        if len(vs_cmd_info) == 0:
+        if not vs_cmd_info:
             raise CCPluginError(MultiLanguage.get_string('GEN_LIBS_ERROR_VS_NOT_FOUND'),
                                 CCPluginError.ERROR_TOOLS_NOT_FOUND)
 
@@ -223,24 +213,28 @@ class LibsCompiler(cocos.CCPlugin):
         win32_proj_info = self.cfg_info[LibsCompiler.KEY_VS_PROJS_INFO]
         proj_path = win32_proj_info['proj_path']
         for vs_version in compile_vs_versions:
-            if not vs_version in vs_cmd_info.keys():
+            if vs_version not in vs_cmd_info:
                 continue
 
             try:
                 vs_command = vs_cmd_info[vs_version]
                 # clean solutions
                 full_proj_path = os.path.join(self.repo_x, proj_path)
-                clean_cmd = " ".join([
-                    "\"%s\"" % vs_command,
-                    "\"%s\"" % full_proj_path,
-                    "/t:Clean /p:Configuration=%s" % mode_str
-                ])
+                clean_cmd = " ".join(
+                    [
+                        "\"%s\"" % vs_command,
+                        "\"%s\"" % full_proj_path,
+                        f"/t:Clean /p:Configuration={mode_str}",
+                    ]
+                )
                 self._run_cmd(clean_cmd)
 
                 output_dir = os.path.join(self.lib_dir, "win32")
 
                 # get the build folder & win32 output folder
-                build_folder_path = os.path.join(os.path.dirname(proj_path), "%s.win32" % mode_str)
+                build_folder_path = os.path.join(
+                    os.path.dirname(proj_path), f"{mode_str}.win32"
+                )
                 win32_output_dir = os.path.join(self.repo_x, output_dir)
                 if not os.path.exists(win32_output_dir):
                     os.makedirs(win32_output_dir)
@@ -248,12 +242,14 @@ class LibsCompiler(cocos.CCPlugin):
                 # build project
                 if self.use_incredibuild:
                     # use incredibuild, build whole sln
-                    build_cmd = " ".join([
-                        "BuildConsole",
-                        "%s" % proj_path,
-                        "/build",
-                        "/cfg=\"%s|Win32\"" % mode_str
-                    ])
+                    build_cmd = " ".join(
+                        [
+                            "BuildConsole",
+                            f"{proj_path}",
+                            "/build",
+                            "/cfg=\"%s|Win32\"" % mode_str,
+                        ]
+                    )
                     self._run_cmd(build_cmd)
                 else:
                     for proj_name in win32_proj_info[self.language][LibsCompiler.KEY_VS_BUILD_TARGETS]:
@@ -263,7 +259,7 @@ class LibsCompiler(cocos.CCPlugin):
                 # copy the libs into prebuilt dir
                 for file_name in os.listdir(build_folder_path):
                     name, ext = os.path.splitext(file_name)
-                    if ext != ".lib" and ext != ".dll":
+                    if ext not in [".lib", ".dll"]:
                         continue
 
                     file_path = os.path.join(build_folder_path, file_name)
@@ -274,11 +270,7 @@ class LibsCompiler(cocos.CCPlugin):
 
     def compile_mac_ios(self):
         xcode_proj_info = self.cfg_info[LibsCompiler.KEY_XCODE_PROJS_INFO]
-        if self.mode == 'debug':
-            mode_str = 'Debug'
-        else:
-            mode_str = 'Release'
-
+        mode_str = 'Debug' if self.mode == 'debug' else 'Release'
         XCODE_CMD_FMT = "xcodebuild -project \"%s\" -configuration %s -target \"%s\" %s CONFIGURATION_BUILD_DIR=%s"
         ios_out_dir = os.path.join(self.lib_dir, "ios")
         mac_out_dir = os.path.join(self.lib_dir, "mac")
@@ -288,11 +280,11 @@ class LibsCompiler(cocos.CCPlugin):
 
         if self.language == 'cpp':
             build_types = ['cpp']
-        if self.language == 'lua':
-            build_types = ['cpp', 'lua']
-        if self.language == 'js':
+        elif self.language == 'js':
             build_types = ['cpp', 'js']
 
+        elif self.language == 'lua':
+            build_types = ['cpp', 'lua']
         for key in build_types:
             proj_info = xcode_proj_info[key]
             proj_path = os.path.join(self.repo_x, proj_info['proj_path'])
@@ -300,16 +292,34 @@ class LibsCompiler(cocos.CCPlugin):
 
             if self.build_mac:
                 # compile mac
-                build_cmd = XCODE_CMD_FMT % (proj_path, mode_str, "%s Mac" % target, "", mac_out_dir)
+                build_cmd = XCODE_CMD_FMT % (
+                    proj_path,
+                    mode_str,
+                    f"{target} Mac",
+                    "",
+                    mac_out_dir,
+                )
                 self._run_cmd(build_cmd)
 
             if self.build_ios:
                 # compile ios simulator
-                build_cmd = XCODE_CMD_FMT % (proj_path, mode_str, "%s iOS" % target, "-sdk iphonesimulator ARCHS=\"i386 x86_64\" VALID_ARCHS=\"i386 x86_64\"", ios_sim_libs_dir)
+                build_cmd = XCODE_CMD_FMT % (
+                    proj_path,
+                    mode_str,
+                    f"{target} iOS",
+                    "-sdk iphonesimulator ARCHS=\"i386 x86_64\" VALID_ARCHS=\"i386 x86_64\"",
+                    ios_sim_libs_dir,
+                )
                 self._run_cmd(build_cmd)
 
                 # compile ios device
-                build_cmd = XCODE_CMD_FMT % (proj_path, mode_str, "%s iOS" % target, "-sdk iphoneos", ios_dev_libs_dir)
+                build_cmd = XCODE_CMD_FMT % (
+                    proj_path,
+                    mode_str,
+                    f"{target} iOS",
+                    "-sdk iphoneos",
+                    ios_dev_libs_dir,
+                )
                 self._run_cmd(build_cmd)
 
             if self.build_ios:
@@ -329,10 +339,10 @@ class LibsCompiler(cocos.CCPlugin):
         if not self.disable_strip:
             # strip the libs
             if self.build_ios:
-                ios_strip_cmd = "xcrun -sdk iphoneos strip -S %s/*.a" % ios_out_dir
+                ios_strip_cmd = f"xcrun -sdk iphoneos strip -S {ios_out_dir}/*.a"
                 self._run_cmd(ios_strip_cmd)
             if self.build_mac:
-                mac_strip_cmd = "xcrun strip -S %s/*.a" % mac_out_dir
+                mac_strip_cmd = f"xcrun strip -S {mac_out_dir}/*.a"
                 self._run_cmd(mac_strip_cmd)
 
     def compile_android(self):
@@ -348,15 +358,15 @@ class LibsCompiler(cocos.CCPlugin):
             proj_path = os.path.join(engine_dir, 'tests/js-tests')
 
         for app_abi_item in self.app_abi_list:
-            build_cmd = "%s compile -s %s -p android --no-sign --mode %s --app-abi %s" % (cmd_path, proj_path, self.mode, app_abi_item)
+            build_cmd = f"{cmd_path} compile -s {proj_path} -p android --no-sign --mode {self.mode} --app-abi {app_abi_item}"
             if self.android_platform is not None:
-                build_cmd += ' --ap %s' % self.android_platform
+                build_cmd += f' --ap {self.android_platform}'
             self._run_cmd(build_cmd)
 
             # copy .a to prebuilt dir
-            ANDROID_A_PATH = "proj.android/app/build/intermediates/ndkBuild/%s/obj/local/%s" % (self.mode, app_abi_item)
+            ANDROID_A_PATH = f"proj.android/app/build/intermediates/ndkBuild/{self.mode}/obj/local/{app_abi_item}"
             if self.language != 'cpp':
-                ANDROID_A_PATH = 'project/' + ANDROID_A_PATH
+                ANDROID_A_PATH = f'project/{ANDROID_A_PATH}'
 
             android_out_dir = os.path.join(self.lib_dir, "android", app_abi_item)
             obj_dir = os.path.join(proj_path, ANDROID_A_PATH)
@@ -380,8 +390,11 @@ class LibsCompiler(cocos.CCPlugin):
 
                 sys_folder_name = "windows"
                 for bit_str in check_bits:
-                    check_folder_name = "windows%s" % bit_str
-                    check_path = os.path.join(ndk_root, "toolchains/arm-linux-androideabi-4.9/prebuilt/%s" % check_folder_name)
+                    check_folder_name = f"windows{bit_str}"
+                    check_path = os.path.join(
+                        ndk_root,
+                        f"toolchains/arm-linux-androideabi-4.9/prebuilt/{check_folder_name}",
+                    )
                     if os.path.isdir(check_path):
                         sys_folder_name = check_folder_name
                         break
@@ -391,25 +404,29 @@ class LibsCompiler(cocos.CCPlugin):
                 sys_folder_name = "linux-x86_64"
 
             # set strip execute file name
-            if cocos.os_is_win32():
-                strip_execute_name = "strip.exe"
-            else:
-                strip_execute_name = "strip"
-
+            strip_execute_name = "strip.exe" if cocos.os_is_win32() else "strip"
             # strip arm libs
-            strip_cmd_path = os.path.join(ndk_root, "toolchains/arm-linux-androideabi-4.9/prebuilt/%s/arm-linux-androideabi/bin/%s"
-                % (sys_folder_name, strip_execute_name))
+            strip_cmd_path = os.path.join(
+                ndk_root,
+                f"toolchains/arm-linux-androideabi-4.9/prebuilt/{sys_folder_name}/arm-linux-androideabi/bin/{strip_execute_name}",
+            )
             if os.path.exists(strip_cmd_path):
                 self.trip_libs(strip_cmd_path, os.path.join(android_out_dir, "armeabi-v7a"))
-                    
+
 
             # strip arm64-v8a libs
-            strip_cmd_path = os.path.join(ndk_root, "toolchains/aarch64-linux-android-4.9/prebuilt/%s/aarch64-linux-android/bin/%s" % (sys_folder_name, strip_execute_name))
+            strip_cmd_path = os.path.join(
+                ndk_root,
+                f"toolchains/aarch64-linux-android-4.9/prebuilt/{sys_folder_name}/aarch64-linux-android/bin/{strip_execute_name}",
+            )
             if os.path.exists(strip_cmd_path) and os.path.exists(os.path.join(android_out_dir, "arm64-v8a")):
                 self.trip_libs(strip_cmd_path, os.path.join(android_out_dir, 'arm64-v8a'))
 
             # strip x86 libs
-            strip_cmd_path = os.path.join(ndk_root, "toolchains/x86-4.8/prebuilt/%s/i686-linux-android/bin/%s" % (sys_folder_name, strip_execute_name))
+            strip_cmd_path = os.path.join(
+                ndk_root,
+                f"toolchains/x86-4.8/prebuilt/{sys_folder_name}/i686-linux-android/bin/{strip_execute_name}",
+            )
             if os.path.exists(strip_cmd_path) and os.path.exists(os.path.join(android_out_dir, "x86")):
                 self.trip_libs(strip_cmd_path, os.path.join(android_out_dir, 'x86'))
 
@@ -418,12 +435,11 @@ class LibsCompiler(cocos.CCPlugin):
 
         engine_dir = self.repo_x
         console_dir = os.path.join(engine_dir, CONSOLE_PATH)
-        if cocos.os_is_win32():
-            cmd_path = os.path.join(console_dir, "cocos.bat")
-        else:
-            cmd_path = os.path.join(console_dir, "cocos")
-
-        return cmd_path
+        return (
+            os.path.join(console_dir, "cocos.bat")
+            if cocos.os_is_win32()
+            else os.path.join(console_dir, "cocos")
+        )
 
     def trip_libs(self, strip_cmd, folder):
         if not os.path.isdir(folder):
@@ -434,10 +450,10 @@ class LibsCompiler(cocos.CCPlugin):
                 basename, ext = os.path.splitext(name)
                 if ext == ".a":
                     full_name = os.path.join(folder, name)
-                    command = "%s -S %s" % (strip_cmd, full_name)
+                    command = f"{strip_cmd} -S {full_name}"
                     self._run_cmd(command)
         else:
-            strip_cmd = "%s -S %s/*.a" % (strip_cmd, folder)
+            strip_cmd = f"{strip_cmd} -S {folder}/*.a"
             self._run_cmd(strip_cmd)
 
     def modify_binary_mk(self):

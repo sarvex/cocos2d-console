@@ -85,8 +85,7 @@ def get_user_id():
     node = uuid.getnode()
     mac = uuid.UUID(int = node).hex[-12:]
 
-    uid = hashlib.md5(mac).hexdigest()
-    return uid
+    return hashlib.md5(mac).hexdigest()
 
 def get_language():
     lang, encoding = locale.getdefaultlocale()
@@ -97,48 +96,40 @@ def get_user_agent():
     if cocos.os_is_win32():
         ver_info = sys.getwindowsversion()
         ver_str = '%d.%d' % (ver_info[0], ver_info[1])
-        if cocos.os_is_32bit_windows():
-            arch_str = "WOW32"
-        else:
-            arch_str = "WOW64"
-        ret_str = "Mozilla/5.0 (Windows NT %s; %s) Chrome/33.0.1750.154 Safari/537.36" % (ver_str, arch_str)
+        arch_str = "WOW32" if cocos.os_is_32bit_windows() else "WOW64"
+        ret_str = f"Mozilla/5.0 (Windows NT {ver_str}; {arch_str}) Chrome/33.0.1750.154 Safari/537.36"
     elif cocos.os_is_mac():
         ver_str = (platform.mac_ver()[0]).replace('.', '_')
-        ret_str = "Mozilla/5.0 (Macintosh; Intel Mac OS X %s) Chrome/35.0.1916.153 Safari/537.36" % ver_str
+        ret_str = f"Mozilla/5.0 (Macintosh; Intel Mac OS X {ver_str}) Chrome/35.0.1916.153 Safari/537.36"
     elif cocos.os_is_linux():
         arch_str = platform.machine()
-        ret_str = "Mozilla/5.0 (X11; Linux %s) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1636.0 Safari/537.36" % arch_str
+        ret_str = f"Mozilla/5.0 (X11; Linux {arch_str}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1636.0 Safari/537.36"
 
     return ret_str
 
 def get_system_info():
     if cocos.os_is_win32():
         ret_str = "windows"
-        ret_str += "_%s" % platform.release()
-        if cocos.os_is_32bit_windows():
-            ret_str += "_%s" % "32bit"
-        else:
-            ret_str += "_%s" % "64bit"
+        ret_str += f"_{platform.release()}"
+        ret_str += '_32bit' if cocos.os_is_32bit_windows() else '_64bit'
     elif cocos.os_is_mac():
-        ret_str = "mac_%s" % (platform.mac_ver()[0]).replace('.', '_')
+        ret_str = f"mac_{platform.mac_ver()[0].replace('.', '_')}"
     elif cocos.os_is_linux():
-        ret_str = "linux_%s" % platform.linux_distribution()[0]
+        ret_str = f"linux_{platform.linux_distribution()[0]}"
     else:
         ret_str = "unknown"
 
     return ret_str
 
 def get_python_version():
-    return "python_%s" % platform.python_version()
+    return f"python_{platform.python_version()}"
 
 def get_time_stamp():
     utc_dt = datetime.datetime.utcnow()
     local_dt = utc_dt + datetime.timedelta(hours=8)
     epoch = datetime.datetime(1970,1,1)
     local_ts = (local_dt - epoch).total_seconds()
-    ret = '%d' % int(local_ts)
-
-    return ret
+    return '%d' % int(local_ts)
 
 def get_static_params(engine_version):
     static_params = {
@@ -160,11 +151,7 @@ def get_static_params(engine_version):
 
 def gen_bi_event(event, event_value):
     time_stamp = get_time_stamp()
-    if event_value == 0:
-        is_cache_event = '1'
-    else:
-        is_cache_event = '0'
-
+    is_cache_event = '1' if event_value == 0 else '0'
     category = event[0]
     action = event[1]
     label = event[2]
@@ -174,11 +161,11 @@ def gen_bi_event(event, event_value):
         'cached_event' : is_cache_event
     }
     if category == 'cocos':
-        if action == 'start':
-            event_name = 'cocos_invoked'
-        elif action == 'running_command':
+        if action == 'running_command':
             event_name = 'running_command'
             params['command'] = label
+        elif action == 'start':
+            event_name = 'cocos_invoked'
         else:
             params['category'] = category
             params['action'] = action
@@ -199,33 +186,22 @@ def gen_bi_event(event, event_value):
         params['action'] = action
         params['label'] = label
 
-    if len(event) >= 4:
-        appear_time = event[3]
-    else:
-        appear_time = time_stamp
-    ret = {
-        'u' : {
-            '28' : get_user_id(),
-            '34' : get_python_version()
-        },
-        'p' : params,
-        's' : time_stamp,
-        'e' : event_name,
-        't' : appear_time
+    appear_time = event[3] if len(event) >= 4 else time_stamp
+    return {
+        'u': {'28': get_user_id(), '34': get_python_version()},
+        'p': params,
+        's': time_stamp,
+        'e': event_name,
+        't': appear_time,
     }
-
-    return ret
 
 def get_bi_params(events, event_value, multi_events=False, engine_versio=''):
     if cocos.os_is_win32():
         system_str = 'windows'
         ver_info = sys.getwindowsversion()
         ver_str = '%d.%d' % (ver_info[0], ver_info[1])
-        if cocos.os_is_32bit_windows():
-            arch_str = "_32bit"
-        else:
-            arch_str = "_64bit"
-        system_ver = '%s%s' % (ver_str, arch_str)
+        arch_str = "_32bit" if cocos.os_is_32bit_windows() else "_64bit"
+        system_ver = f'{ver_str}{arch_str}'
     elif cocos.os_is_mac():
         system_str = 'mac'
         system_ver = (platform.mac_ver()[0])
@@ -238,26 +214,16 @@ def get_bi_params(events, event_value, multi_events=False, engine_versio=''):
 
     events_param = []
     if multi_events:
-        for e in events:
-            events_param.append(gen_bi_event(e, event_value))
+        events_param.extend(gen_bi_event(e, event_value) for e in events)
     else:
         events_param.append(gen_bi_event(events, event_value))
 
-    params = {
-        'device': {
-            '10' : system_ver,
-            '11' : system_str
-        },
-        'app': {
-            '7' : BI_APPID,
-            '8' : engine_version,
-            '9' : get_language()
-        },
-        'time' : get_time_stamp(),
-        'events' : events_param
+    return {
+        'device': {'10': system_ver, '11': system_str},
+        'app': {'7': BI_APPID, '8': engine_version, '9': get_language()},
+        'time': get_time_stamp(),
+        'events': events_param,
     }
-
-    return params
 
 def cache_event(event, is_ga=True, multi_events=False):
     if is_ga:
@@ -274,11 +240,7 @@ def cache_bi_event(event, multi_events=False):
         # get current cached events
         cache_events = get_bi_cached_events(need_lock=False)
 
-        if multi_events:
-            need_cache_size = len(event)
-        else:
-            need_cache_size = 1
-
+        need_cache_size = len(event) if multi_events else 1
         # delete the oldest events if there are too many events.
         events_size = len(cache_events)
         if events_size >= Statistic.MAX_CACHE_EVENTS:
@@ -292,10 +254,8 @@ def cache_bi_event(event, multi_events=False):
         else:
             cache_events.append(event)
 
-        # write file
-        outFile = open(bi_cfg_file, 'w')
-        json.dump(cache_events, outFile)
-        outFile.close()
+        with open(bi_cfg_file, 'w') as outFile:
+            json.dump(cache_events, outFile)
     except:
         if outFile is not None:
             outFile.close()
@@ -311,10 +271,8 @@ def get_bi_cached_events(need_lock=True):
             if need_lock:
                 bi_file_in_use_lock.acquire()
 
-            f = open(bi_cfg_file)
-            cached_events = json.load(f)
-            f.close()
-
+            with open(bi_cfg_file) as f:
+                cached_events = json.load(f)
             if not isinstance(cached_events, list):
                 cached_events = []
         except:
@@ -345,10 +303,8 @@ def get_ga_cached_events(is_bak=False, need_lock=True):
             if need_lock:
                 lock.acquire()
 
-            f = open(cfg_file)
-            cached_events = json.load(f)
-            f.close()
-
+            with open(cfg_file) as f:
+                cached_events = json.load(f)
             if not isinstance(cached_events, list):
                 cached_events = []
         except:
@@ -378,10 +334,8 @@ def cache_ga_event(event):
         # cache the new event
         cache_events.append(event)
 
-        # write file
-        outFile = open(local_cfg_file, 'w')
-        json.dump(cache_events, outFile)
-        outFile.close()
+        with open(local_cfg_file, 'w') as outFile:
+            json.dump(cache_events, outFile)
     except:
         if outFile is not None:
             outFile.close()
@@ -397,9 +351,8 @@ def pop_bak_ga_cached_event():
         events = events[1:]
         outFile = None
         try:
-            outFile = open(local_cfg_bak_file, 'w')
-            json.dump(events, outFile)
-            outFile.close()
+            with open(local_cfg_bak_file, 'w') as outFile:
+                json.dump(events, outFile)
         except:
             if outFile:
                 outFile.close()
@@ -419,17 +372,15 @@ def do_send_ga_cached_event(engine_version):
 def get_params_str(event, event_value, is_ga=True, multi_events=False, engine_version=''):
     if is_ga:
         params = get_static_params(engine_version)
-        params[Fields.EVENT_CATEGORY] = '2dx-' + event[0]
+        params[Fields.EVENT_CATEGORY] = f'2dx-{event[0]}'
         params[Fields.EVENT_ACTION]   = event[1]
         params[Fields.EVENT_LABEL]    = event[2]
         params[Fields.EVENT_VALUE]    = '%d' % event_value
-        params_str = urllib.urlencode(params)
+        return urllib.urlencode(params)
     else:
         params = get_bi_params(event, event_value, multi_events, engine_version)
         strParam = json.dumps(params)
-        params_str = zlib.compress(strParam, 9)
-
-    return params_str
+        return zlib.compress(strParam, 9)
 
 def do_http_request(event, event_value, is_ga=True, multi_events=False, engine_version=''):
     ret = False
@@ -450,11 +401,7 @@ def do_http_request(event, event_value, is_ga=True, multi_events=False, engine_v
 
         response = conn.getresponse()
         res = response.status
-        if res >= 200 and res < 300:
-            # status is 2xx mean the request is success.
-            ret = True
-        else:
-            ret = False
+        ret = res >= 200 and res < 300
     except:
         pass
     finally:
@@ -499,7 +446,7 @@ class Statistic(object):
 
                 # create processes to handle the events
                 proc_num = min(event_size, Statistic.MAX_CACHE_PROC)
-                for i in range(proc_num):
+                for _ in range(proc_num):
                     p = multiprocessing.Process(target=do_send_ga_cached_event, args=(self.engine_version,))
                     p.start()
                     self.process_pool.append(p)
@@ -544,11 +491,7 @@ class Statistic(object):
     def terminate_stat(self):
         # terminate sub-processes
         if len(self.process_pool) > 0:
-            alive_count = 0
-            for p in self.process_pool:
-                if p.is_alive():
-                    alive_count += 1
-
+            alive_count = sum(1 for p in self.process_pool if p.is_alive())
             if alive_count > 0:
                 time.sleep(1)
                 for p in self.process_pool:

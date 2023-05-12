@@ -57,10 +57,10 @@ class CCPluginDist(cocos2d.CCPlugin):
         if match is None:
             raise cocos2d.CCPluginError("Couldn't find the schemes list")
 
-        schemes = match.group(1).split()
+        schemes = match[1].split()
         if len(schemes) == 0:
             raise cocos2d.CCPluginError("Couldn't find a scheme")
-        
+
         return schemes[0]
 
 
@@ -74,17 +74,23 @@ class CCPluginDist(cocos2d.CCPlugin):
         project_dir = self._platforms.project_path()
 
         scheme = self._find_ios_scheme(project_dir)
-        cocos2d.Logging.info("using scheme %s" % scheme)
+        cocos2d.Logging.info(f"using scheme {scheme}")
 
-        archive_path = os.path.join(CCPluginDist.target_path(project_dir), scheme + '.xcarchive')
+        archive_path = os.path.join(
+            CCPluginDist.target_path(project_dir), f'{scheme}.xcarchive'
+        )
         cocos2d.Logging.info("archiving")
-        self._run_cmd("cd '%s' && xcodebuild -scheme '%s' -archivePath '%s' archive" % (project_dir, scheme, archive_path))
+        self._run_cmd(
+            f"cd '{project_dir}' && xcodebuild -scheme '{scheme}' -archivePath '{archive_path}' archive"
+        )
 
         cocos2d.Logging.info("exporting archive")
-        ipa_path = os.path.join(os.path.dirname(archive_path), scheme + '.ipa')
+        ipa_path = os.path.join(os.path.dirname(archive_path), f'{scheme}.ipa')
         if os.path.exists(ipa_path):
             os.remove(ipa_path)
-        self._run_cmd("cd '%s' && xcodebuild -exportArchive -exportFormat IPA -archivePath '%s' -exportPath '%s' -exportProvisioningProfile '%s'" % (project_dir, archive_path, ipa_path, self._provisioning))
+        self._run_cmd(
+            f"cd '{project_dir}' && xcodebuild -exportArchive -exportFormat IPA -archivePath '{archive_path}' -exportPath '{ipa_path}' -exportProvisioningProfile '{self._provisioning}'"
+        )
         cocos2d.Logging.info("\nThe ipa was created at:\n%s" % os.path.abspath(ipa_path))
         cocos2d.Logging.info("\nNow you can use 'Application Loader' to submit the .ipa\n")
 

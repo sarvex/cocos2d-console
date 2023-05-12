@@ -13,12 +13,10 @@ from MultiLanguage import MultiLanguage
 def get_template_path():
     if getattr(sys, 'frozen', None):
         cur_path = os.path.realpath(os.path.dirname(sys.executable))
-        ret = os.path.join(cur_path, 'helper', 'template')
+        return os.path.join(cur_path, 'helper', 'template')
     else:
         cur_path = os.path.realpath(os.path.dirname(__file__))
-        ret = os.path.join(cur_path, 'template')
-
-    return ret
+        return os.path.join(cur_path, 'template')
 
 class CreateFrameworkHelper(object):
 
@@ -74,17 +72,17 @@ class CreateFrameworkHelper(object):
     def generate_uuid_string(self):
         uuid_str = uuid.uuid1().hex.upper()
         str1 = uuid_str[16:20]
-        str2 = uuid_str[0:8]
+        str2 = uuid_str[:8]
         vars = self._vars
-        vars["__XCODE_PROJ_ID__"] = str1 + "98D41A82028A" + str2
-        vars["__MAC_LIB_ORI_ID__"] = str1 + "966C1A81DF7F" + str2
-        vars["__MAC_LIB_CTN_ID__"] = str1 + "98D91A82028A" + str2
-        vars["__MAC_LIB_PRJ_ID__"] = str1 + "98DA1A82028A" + str2
-        vars["__MAC_LIB_BLD_ID__"] = str1 + "98DE1A820D18" + str2
-        vars["__IOS_LIB_ORI_ID__"] = str1 + "98A71A81E087" + str2
-        vars["__IOS_LIB_CTN_ID__"] = str1 + "98DB1A82028A" + str2
-        vars["__IOS_LIB_PRJ_ID__"] = str1 + "98DC1A82028A" + str2
-        vars["__IOS_LIB_BLD_ID__"] = str1 + "994F1A821434" + str2
-        vars["__XCODE_PRDGRP_ID__"] = str1 + "98D51A82028A" + str2
+        vars["__XCODE_PROJ_ID__"] = f"{str1}98D41A82028A{str2}"
+        vars["__MAC_LIB_ORI_ID__"] = f"{str1}966C1A81DF7F{str2}"
+        vars["__MAC_LIB_CTN_ID__"] = f"{str1}98D91A82028A{str2}"
+        vars["__MAC_LIB_PRJ_ID__"] = f"{str1}98DA1A82028A{str2}"
+        vars["__MAC_LIB_BLD_ID__"] = f"{str1}98DE1A820D18{str2}"
+        vars["__IOS_LIB_ORI_ID__"] = f"{str1}98A71A81E087{str2}"
+        vars["__IOS_LIB_CTN_ID__"] = f"{str1}98DB1A82028A{str2}"
+        vars["__IOS_LIB_PRJ_ID__"] = f"{str1}98DC1A82028A{str2}"
+        vars["__IOS_LIB_BLD_ID__"] = f"{str1}994F1A821434{str2}"
+        vars["__XCODE_PRDGRP_ID__"] = f"{str1}98D51A82028A{str2}"
 
 

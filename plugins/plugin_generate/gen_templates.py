@@ -38,8 +38,10 @@ class TemplateGenerator(cocos.CCPlugin):
         return MultiLanguage.get_string('GEN_TEMP_BRIEF')
 
     def parse_args(self, argv):
-        parser = ArgumentParser(prog="cocos %s" % self.__class__.plugin_name(),
-                                description=self.__class__.brief_description())
+        parser = ArgumentParser(
+            prog=f"cocos {self.__class__.plugin_name()}",
+            description=self.__class__.brief_description(),
+        )
         (args, unknown) = parser.parse_known_args()
         self.init(args)
 
@@ -85,10 +87,8 @@ class TemplateGenerator(cocos.CCPlugin):
 
     def getConfigJson(self):
         cfg_json_path = os.path.join(self.cur_dir, TemplateGenerator.CONFIG_FILE)
-        f = open(cfg_json_path)
-        config_json = json.load(f)
-        f.close()
-
+        with open(cfg_json_path) as f:
+            config_json = json.load(f)
         return config_json
 
     def gen_templates(self):
@@ -139,47 +139,35 @@ class TemplateGenerator(cocos.CCPlugin):
             else:
                 link_libs = link_libs_cfg['base']
 
-            f = open(cpp_full_path)
-            old_lines = f.readlines()
-            f.close()
-
+            with open(cpp_full_path) as f:
+                old_lines = f.readlines()
             new_lines = []
             for line in old_lines:
                 strip_line = line.strip()
                 if re.match(check_pattern1, strip_line) or re.match(check_pattern2, strip_line):
                     new_lines.append('#if _MSC_VER > 1800\n')
-                    for lib in link_libs:
-                        new_lines.append('%s\n' % self.get_lib_str(lib, 2015))
+                    new_lines.extend('%s\n' % self.get_lib_str(lib, 2015) for lib in link_libs)
                     new_lines.append('#else\n')
-                    for lib in link_libs:
-                        new_lines.append('%s\n' % self.get_lib_str(lib, 2013))
+                    new_lines.extend('%s\n' % self.get_lib_str(lib, 2013) for lib in link_libs)
                     new_lines.append('#endif\n\n')
-                    new_lines.append(line)
-                else:
-                    new_lines.append(line)
-
-            f = open(cpp_full_path, 'w')
-            f.writelines(new_lines)
-            f.close()
+                new_lines.append(line)
+            with open(cpp_full_path, 'w') as f:
+                f.writelines(new_lines)
 
     def get_lib_str(self, lib_name, ver):
         base, ext = os.path.splitext(lib_name)
-        ret = '#pragma comment(lib,"%s_%d%s")' % (base, ver, ext)
-        return ret
+        return '#pragma comment(lib,"%s_%d%s")' % (base, ver, ext)
 
     def modify_file(self, file_path, pattern, replace_str):
-        f = open(file_path)
-        lines = f.readlines()
-        f.close()
-
+        with open(file_path) as f:
+            lines = f.readlines()
         new_lines = []
         for line in lines:
             new_line = re.sub(pattern, replace_str, line)
             new_lines.append(new_line)
 
-        f = open(file_path, "w")
-        f.writelines(new_lines)
-        f.close()
+        with open(file_path, "w") as f:
+            f.writelines(new_lines)
 
     def modify_files(self):
         modify_cfg = self.config_json[TemplateGenerator.KEY_MODIFY_CFG]
@@ -189,7 +177,7 @@ class TemplateGenerator(cocos.CCPlugin):
                 file_path = os.path.abspath(os.path.join(self.engine_template_dir, file_path))
 
             if not os.path.isfile(file_path):
-                print("%s is not a file." % file_path)
+                print(f"{file_path} is not a file.")
                 continue
 
             pattern = cfg["pattern"]
@@ -197,15 +185,12 @@ class TemplateGenerator(cocos.CCPlugin):
             self.modify_file(file_path, pattern, replace_str)
 
     def modify_version_json(self, file_path):
-        f = open(file_path)
-        version_info = json.load(f)
-        f.close()
-
+        with open(file_path) as f:
+            version_info = json.load(f)
         version_info["engineVersion"] = self.version
 
-        f = open(file_path, "w")
-        json.dump(version_info, f, sort_keys=True, indent=4)
-        f.close()
+        with open(file_path, "w") as f:
+            json.dump(version_info, f, sort_keys=True, indent=4)
 
     def get_version_from_source(self):
         src_engine_path = self.engine_path
@@ -214,14 +199,11 @@ class TemplateGenerator(cocos.CCPlugin):
 
         # restore the version of engine
         ver = ""
-        f = open(version_file_path)
-        for line in f.readlines():
-            match = re.match(pattern, line)
-            if match:
-                ver = match.group(1)
-                break
-        f.close()
-
+        with open(version_file_path) as f:
+            for line in f:
+                if match := re.match(pattern, line):
+                    ver = match[1]
+                    break
         if len(ver) <= 0:
             raise CCPluginError(MultiLanguage.get_string('GEN_TEMP_ERROR_VER_NOT_FOUND_FMT', version_file_path),
                                 CCPluginError.ERROR_PARSE_FILE)
@@ -240,22 +222,17 @@ class TemplateGenerator(cocos.CCPlugin):
             cfg_path = os.path.join(fullPath, ".cocos-project.json")
             cfg_info = {}
             if os.path.exists(cfg_path):
-                f = open(cfg_path)
-                cfg_info = json.load(f)
-                f.close()
-
+                with open(cfg_path) as f:
+                    cfg_info = json.load(f)
             cfg_info["engine_version"] = engine_ver
             cfg_info["engine_type"] = "prebuilt"
 
-            f = open(cfg_path, "w")
-            json.dump(cfg_info, f, sort_keys=True, indent=4)
-            f.close()
+            with open(cfg_path, "w") as f:
+                json.dump(cfg_info, f, sort_keys=True, indent=4)
 
     def rm_copy_res(self, file_path, keyword):
-        f = open(file_path)
-        info = json.load(f)
-        f.close()
-
+        with open(file_path) as f:
+            info = json.load(f)
         changed = False
         for cpy_res in info['copy_resources']:
             if cpy_res['from'].find(keyword) >= 0:
@@ -264,15 +241,12 @@ class TemplateGenerator(cocos.CCPlugin):
                 break
 
         if changed:
-            f = open(file_path, 'w')
-            json.dump(info, f, indent=4)
-            f.close()
+            with open(file_path, 'w') as f:
+                json.dump(info, f, indent=4)
 
     def modify_project_properties(self, cfg_path):
-        f = open(cfg_path)
-        lines = f.readlines()
-        f.close()
-
+        with open(cfg_path) as f:
+            lines = f.readlines()
         new_lines = []
         pattern = r'android\.library\.reference.*'
         for line in lines:
@@ -280,9 +254,8 @@ class TemplateGenerator(cocos.CCPlugin):
             if not re.match(pattern, temp_str):
                 new_lines.append(line)
 
-        f = open(cfg_path, 'w')
-        f.writelines(new_lines)
-        f.close()
+        with open(cfg_path, 'w') as f:
+            f.writelines(new_lines)
 
     def modify_build_cfg(self):
         build_cfg_files = self.config_json[TemplateGenerator.KEY_BUILD_CFG_FILES]
@@ -299,19 +272,16 @@ class TemplateGenerator(cocos.CCPlugin):
 
             if file_cfg_info.has_key(TemplateGenerator.KEY_REPLACE_STRING):
                 replace_cfg = file_cfg_info[TemplateGenerator.KEY_REPLACE_STRING]
-                f = open(cfg_full_path)
-                file_content = f.read()
-                f.close()
-
+                with open(cfg_full_path) as f:
+                    file_content = f.read()
                 for replace_cfg_info in replace_cfg:
                     src_str = replace_cfg_info['src_str']
                     dst_str = replace_cfg_info['dst_str']
                     dst_str = dst_str.replace('${FW_VERSION_PATH}', fw_version_path)
                     file_content = file_content.replace(src_str, dst_str)
 
-                f = open(cfg_full_path, "w")
-                f.write(file_content)
-                f.close()
+                with open(cfg_full_path, "w") as f:
+                    f.write(file_content)
 
     def run(self, argv, dependencies):
         self.parse_args(argv)

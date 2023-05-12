@@ -84,10 +84,10 @@ shutil.move(extracted_path, console_path)
 
 bin_path = os.path.join(console_path, 'console', 'bin')
 path = os.environ.get('PATH', '')
-if not bin_path in path.split(os.pathsep):
-    Logging.warning("console path '%s' is not in PATH!" % bin_path)
+if bin_path not in path.split(os.pathsep):
+    Logging.warning(f"console path '{bin_path}' is not in PATH!")
 
 touch(install_mark_path)
 
-Logging.info("Cocos2d console installed successfully at %s" % console_path)
+Logging.info(f"Cocos2d console installed successfully at {console_path}")
 Logging.info("Now type: cocos")

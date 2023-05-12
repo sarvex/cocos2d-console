@@ -72,7 +72,7 @@ class CCPluginRun(cocos.CCPlugin):
         match = re.match(r'(\d+).*', ver)
         ret = None
         if match:
-            ver_num = int(match.group(1))
+            ver_num = int(match[1])
             if ver_num <= 5:
                 ret = "ios-sim-xcode5"
             elif ver_num < 8:
@@ -95,12 +95,8 @@ class CCPluginRun(cocos.CCPlugin):
             pattern = r'(^iPhone[^\[]+)\[(.*)\]\s*\(Simulator\)'
             lines = out.split('\n')
             for line in lines:
-                match = re.match(pattern, line)
-                if match:
-                    info = {
-                        "name" : match.group(1),
-                        'id' : match.group(2)
-                    }
+                if match := re.match(pattern, line):
+                    info = {"name": match[1], 'id': match[2]}
                     names.append(info)
 
         ret = None
@@ -108,7 +104,7 @@ class CCPluginRun(cocos.CCPlugin):
         phoneTypeNum = 0
         phoneType = ''
         iosVer = 0
-        if len(names) > 0:
+        if names:
             name_pattern = r'iPhone\s+((\d+)[^\(]+)\((.*)\)'
             for info in names:
                 name = info["name"]
@@ -116,12 +112,11 @@ class CCPluginRun(cocos.CCPlugin):
                 if name.find('Apple Watch') > 0:
                     continue
 
-                match = re.match(name_pattern, name)
-                if match:
+                if match := re.match(name_pattern, name):
                     # get the matched data
-                    typeNum = int(match.group(2))
-                    tmpType = match.group(1)
-                    tmpIOSVer = match.group(3)
+                    typeNum = int(match[2])
+                    tmpType = match[1]
+                    tmpIOSVer = match[3]
 
                     if ((typeNum > phoneTypeNum) or
                         (typeNum == phoneTypeNum and tmpType > phoneType) or
@@ -136,7 +131,7 @@ class CCPluginRun(cocos.CCPlugin):
         if ret is None:
             raise cocos.CCPluginError('Get simulator failed!')
 
-        print('Using simulator: %s' % retName)
+        print(f'Using simulator: {retName}')
         return ret
 
     def _get_bundle_id(self, app_path):
@@ -150,7 +145,7 @@ class CCPluginRun(cocos.CCPlugin):
                 ret = jsonObj['CFBundleIdentifier']
 
         if ret is None:
-            raise cocos.CCPluginError('Get the bundle ID of app %s failed' % app_path)
+            raise cocos.CCPluginError(f'Get the bundle ID of app {app_path} failed')
 
         return ret
 
@@ -167,20 +162,19 @@ class CCPluginRun(cocos.CCPlugin):
         try:
             # run the simulator
             xcode_version = cocos.get_xcode_version()
-            xcode9_and_upper = cocos.version_compare(xcode_version,">=",9)
-            if xcode9_and_upper:
-                self._run_cmd('xcrun simctl boot "%s"' % simulator_id)
+            if xcode9_and_upper := cocos.version_compare(xcode_version, ">=", 9):
+                self._run_cmd(f'xcrun simctl boot "{simulator_id}"')
                 self._run_cmd('open `xcode-select -p`/Applications/Simulator.app')
             else:
-                self._run_cmd('xcrun instruments -w "%s"' % simulator_id)
+                self._run_cmd(f'xcrun instruments -w "{simulator_id}"')
         except Exception as e:
             pass
 
         # install app
-        self._run_cmd('xcrun simctl install "%s" "%s"' % (simulator_id, ios_app_path))
+        self._run_cmd(f'xcrun simctl install "{simulator_id}" "{ios_app_path}"')
 
         # run app
-        self._run_cmd('xcrun simctl launch "%s" "%s"' % (simulator_id, bundle_id))
+        self._run_cmd(f'xcrun simctl launch "{simulator_id}" "{bundle_id}"')
 
     def run_ios_sim(self, dependencies):
         if not self._platforms.is_ios_active():
@@ -209,7 +203,7 @@ class CCPluginRun(cocos.CCPlugin):
         if self._no_console:
             cmd += ' -console no'
         if self._working_dir:
-            cmd += ' -workdir "%s"' % self._working_dir
+            cmd += f' -workdir "{self._working_dir}"'
         self._run_cmd(cmd)
 
     def run_mac(self, dependencies):
@@ -229,23 +223,19 @@ class CCPluginRun(cocos.CCPlugin):
         deploy_dep = dependencies['deploy']
         startapp = "%s shell am start -n \"%s/%s\"" % (adb_path, deploy_dep.package, deploy_dep.activity)
         self._run_cmd(startapp)
-        pass
 
     def open_webbrowser(self, url):
         if self._browser is None:
             threading.Event().wait(1)
             webbrowser.open_new(url)
         else:
-            if cocos.os_is_mac():
-                if self._param is None:
+            if self._param is None:
+                if cocos.os_is_mac():
                     url_cmd = "open -a \"%s\" \"%s\"" % (self._browser, url)
                 else:
-                    url_cmd = "\"%s\" \"%s\" %s" % (self._browser, url, self._param)
-            else:
-                if self._param is None:
                     url_cmd = "\"%s\" %s" % (self._browser, url)
-                else:
-                    url_cmd = "\"%s\" \"%s\" %s" % (self._browser, url, self._param)
+            else:
+                url_cmd = "\"%s\" \"%s\" %s" % (self._browser, url, self._param)
             self._run_cmd(url_cmd)
 
     def run_web(self, dependencies):
@@ -291,7 +281,7 @@ class CCPluginRun(cocos.CCPlugin):
 
         from threading import Thread
         sub_url = deploy_dep.sub_url
-        url = 'http://%s:%s%s' % (host, port, sub_url)
+        url = f'http://{host}:{port}{sub_url}'
         thread = Thread(target = self.open_webbrowser, args = (url,))
         thread.start()
 
@@ -329,7 +319,7 @@ class CCPluginRun(cocos.CCPlugin):
         tizen_studio_path = cocos.check_environment_variable("TIZEN_STUDIO_HOME")
         tizen_cmd_path = cocos.CMDRunner.convert_path_to_cmd(os.path.join(tizen_studio_path, "tools", "ide", "bin", "tizen"))
 
-        startapp = "%s run -p %s" % (tizen_cmd_path, tizen_packageid)
+        startapp = f"{tizen_cmd_path} run -p {tizen_packageid}"
         self._run_cmd(startapp)
 
 

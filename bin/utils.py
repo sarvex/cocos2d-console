@@ -157,7 +157,7 @@ def get_vs_versions():
             if match is None:
                 continue
 
-            ver_str = '%s.%s' % (match.group(1), match.group(2))
+            ver_str = f'{match[1]}.{match[2]}'
             if ver_str not in ret:
                 ret.append(ver_str)
 
@@ -177,10 +177,13 @@ def get_newest_msbuild(min_ver=None):
             continue
 
         v_path = get_msbuild_path(v)
-        if v_path is not None:
-            if (find_ver is None) or cmp(cur_ver, ">", find_ver):
-                find_ver = cur_ver
-                find_path = v_path
+        if (
+            v_path is not None
+            and (find_ver is None)
+            or cmp(cur_ver, ">", find_ver)
+        ):
+            find_ver = cur_ver
+            find_path = v_path
 
     return find_path
 
@@ -198,16 +201,15 @@ def get_newest_devenv(min_ver=None):
             continue
 
         v_path = get_devenv_path(cur_ver)
-        if v_path is not None:
-            if (find_ver is None) or cmp(cur_ver, ">", find_ver):
-                find_ver = cur_ver
-                find_path = v_path
+        if (
+            v_path is not None
+            and (find_ver is None)
+            or cmp(cur_ver, ">", find_ver)
+        ):
+            find_ver = cur_ver
+            find_path = v_path
 
-    if cmp(min_ver, ">", 0) and cmp(find_ver, ">", min_ver):
-        need_upgrade = True
-    else:
-        need_upgrade = False
-
+    need_upgrade = bool(cmp(min_ver, ">", 0) and cmp(find_ver, ">", min_ver))
     return (need_upgrade, find_path)
 
 def rmdir(folder):
@@ -225,13 +227,11 @@ def get_engine_version(engine_path):
     try:
         version_file = os.path.join(engine_path, VERSION_FILE_PATH)
         if os.path.isfile(version_file):
-            f = open(version_file)
-            for line in f.readlines():
-                match = re.match(VERSION_PATTERN, line)
-                if match:
-                    ret = match.group(1)
-                    break
-            f.close()
+            with open(version_file) as f:
+                for line in f:
+                    if match := re.match(VERSION_PATTERN, line):
+                        ret = match[1]
+                        break
     except:
         pass
 

@@ -50,10 +50,8 @@ class CCPluginJSCompile(cocos.CCPlugin):
         self._workingdir = workingdir
         self._closure_params = ''
         if options.compiler_config != None:
-            f = open(options.compiler_config)
-            self._config = json.load(f)
-            f.close()
-
+            with open(options.compiler_config) as f:
+                self._config = json.load(f)
             self._pre_order = self._config["pre_order"]
             self.normalize_path_in_list(self._pre_order)
             self._post_order = self._config["post_order"]
@@ -62,13 +60,15 @@ class CCPluginJSCompile(cocos.CCPlugin):
             self.normalize_path_in_list(self._skip)
             self._closure_params = self._config["closure_params"]
 
-        
+
         if options.closure_params is not None:
             self._closure_params = options.closure_params
 
         self._js_files = {}
         self._compressed_js_path = os.path.join(self._dst_dir, options.compressed_filename)
-        self._compressed_jsc_path = os.path.join(self._dst_dir, options.compressed_filename+"c")
+        self._compressed_jsc_path = os.path.join(
+            self._dst_dir, f"{options.compressed_filename}c"
+        )
 
         if(cocos.os_is_linux()):
             if(platform.architecture()[0] == "32bit"):
@@ -104,7 +104,7 @@ class CCPluginJSCompile(cocos.CCPlugin):
         """
         # create folder for generated file
         jsc_filepath = ""
-        relative_path = self.get_relative_path(jsfile)+"c"
+        relative_path = f"{self.get_relative_path(jsfile)}c"
         jsc_filepath = os.path.join(self._dst_dir, relative_path)
 
         dst_rootpath = os.path.split(jsc_filepath)[0]
@@ -184,7 +184,7 @@ class CCPluginJSCompile(cocos.CCPlugin):
             return -1 * delta
         elif not is_a_in_list and is_b_in_list:
             return 1 * delta
-        elif is_a_in_list and is_b_in_list:
+        elif is_a_in_list:
             if index_a > index_b:
                 return 1
             elif index_a < index_b:
@@ -195,7 +195,7 @@ class CCPluginJSCompile(cocos.CCPlugin):
             return 0
 
     def reorder_js_files(self):
-        if self._config == None:
+        if self._config is None:
             return
 
         # print "before:"+str(self._js_files)
@@ -204,11 +204,11 @@ class CCPluginJSCompile(cocos.CCPlugin):
             # Remove file in exclude list
             need_remove_arr = []
             for jsfile in self._js_files[src_dir]:
-                for exclude_file in self._skip:
-                    if jsfile.rfind(exclude_file) != -1:
-                        # print "remove:" + jsfile
-                        need_remove_arr.append(jsfile)
-
+                need_remove_arr.extend(
+                    jsfile
+                    for exclude_file in self._skip
+                    if jsfile.rfind(exclude_file) != -1
+                )
             for need_remove in need_remove_arr:
                 self._js_files[src_dir].remove(need_remove)
 
@@ -253,7 +253,11 @@ class CCPluginJSCompile(cocos.CCPlugin):
         # download the bin folder
         if not os.path.exists(self.jsbcc_exe_path):
             download_cmd_path = os.path.join(self._workingdir, os.pardir, os.pardir)
-            subprocess.call("python %s -f -r no" % (os.path.join(download_cmd_path, "download-bin.py")), shell=True, cwd=download_cmd_path)
+            subprocess.call(
+                f'python {os.path.join(download_cmd_path, "download-bin.py")} -f -r no',
+                shell=True,
+                cwd=download_cmd_path,
+            )
 
         # deep iterate the src directory
         for src_dir in self._src_dir_arr:
@@ -270,8 +274,10 @@ class CCPluginJSCompile(cocos.CCPlugin):
         """
         from argparse import ArgumentParser
 
-        parser = ArgumentParser(prog="cocos %s" % self.__class__.plugin_name(),
-                                description=self.__class__.brief_description())
+        parser = ArgumentParser(
+            prog=f"cocos {self.__class__.plugin_name()}",
+            description=self.__class__.brief_description(),
+        )
         parser.add_argument("-v", "--verbose",
                           action="store_true",
                           dest="verbose",
@@ -301,10 +307,10 @@ class CCPluginJSCompile(cocos.CCPlugin):
 
         options = parser.parse_args(argv)
 
-        if options.src_dir_arr == None:
+        if options.src_dir_arr is None:
             raise cocos.CCPluginError(MultiLanguage.get_string('JSCOMPILE_ERROR_SRC_NOT_SPECIFIED'),
                                       cocos.CCPluginError.ERROR_WRONG_ARGS)
-        elif options.dst_dir == None:
+        elif options.dst_dir is None:
             raise cocos.CCPluginError(MultiLanguage.get_string('LUACOMPILE_ERROR_DST_NOT_SPECIFIED'),
                                       cocos.CCPluginError.ERROR_WRONG_ARGS)
         else:
